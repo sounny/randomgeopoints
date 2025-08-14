@@ -388,10 +388,16 @@
     });
 
     // ---------- Exports ----------
-    function saveText(name, text){
-      const blob = new Blob([text], {type:'application/json'});
+    function saveText(name, text, mime='application/json'){
+      const blob = new Blob([text], {type:mime});
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      const a = document.createElement('a');
+      a.href=url;
+      a.download=name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     }
     function toCSV(fc){
       const rows = [['id','lon','lat','method']];
@@ -401,10 +407,13 @@
       return rows.map(r=> r.join(',')).join('\n');
     }
     document.getElementById('downloadGeoJSON').addEventListener('click', ()=>{
-      if(!pointsFC) return; saveText('random_points.geojson', JSON.stringify(pointsFC));
+      if(!pointsFC) return;
+      saveText('random_points.geojson', JSON.stringify(pointsFC), 'application/geo+json');
     });
     document.getElementById('downloadCSV').addEventListener('click', ()=>{
-      if(!pointsFC) return; const csv = toCSV(pointsFC); saveText('random_points.csv', csv);
+      if(!pointsFC) return;
+      const csv = toCSV(pointsFC);
+      saveText('random_points.csv', csv, 'text/csv');
     });
     document.getElementById('copyGeoJSON').addEventListener('click', async ()=>{
       if(!pointsFC) return; try{ await navigator.clipboard.writeText(JSON.stringify(pointsFC)); status('Copied to clipboard'); }catch(e){ alert('Copy failed'); }
