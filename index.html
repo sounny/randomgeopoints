@@ -174,11 +174,13 @@
     const aoiLayer = L.geoJSON(null, {style:{color:'#4cc9f0',weight:2,fillOpacity:0.08}}).addTo(map);
     const ptsLayer = L.geoJSON(null, {pointToLayer: (f,latlng)=> L.circleMarker(latlng,{radius:4,weight:1,color:'#34d399',fillColor:'#34d399',fillOpacity:0.9})}).addTo(map);
     function fitBboxOnMap(){
-      const minx = parseFloat(document.getElementById('minx').value);
-      const miny = parseFloat(document.getElementById('miny').value);
-      const maxx = parseFloat(document.getElementById('maxx').value);
-      const maxy = parseFloat(document.getElementById('maxy').value);
-      const b = [[miny,minx],[maxy,maxx]]; map.fitBounds(b);
+      try{
+        const [minx,miny,maxx,maxy] = parseBBox();
+        const b = [[miny,minx],[maxy,maxx]]; map.fitBounds(b);
+        status('Map fit to bounding box');
+      }catch(err){
+        alert(err.message);
+      }
     }
     document.getElementById('fitBbox').addEventListener('click', fitBboxOnMap);
 
@@ -201,21 +203,27 @@
     });
 
     // ---------- Geometry helpers ----------
-    function currentBBox(){
-      return [
-        parseFloat(document.getElementById('minx').value),
-        parseFloat(document.getElementById('miny').value),
-        parseFloat(document.getElementById('maxx').value),
-        parseFloat(document.getElementById('maxy').value)
-      ];
+    function parseBBox(){
+      const minx = parseFloat(document.getElementById('minx').value);
+      const miny = parseFloat(document.getElementById('miny').value);
+      const maxx = parseFloat(document.getElementById('maxx').value);
+      const maxy = parseFloat(document.getElementById('maxy').value);
+      if([minx,miny,maxx,maxy].some(v=> Number.isNaN(v))){
+        throw new Error('Bounding box values must be numbers');
+      }
+      if(minx >= maxx || miny >= maxy){
+        throw new Error('Bounding box min values must be smaller than max values');
+      }
+      return [minx,miny,maxx,maxy];
     }
     function bboxToPolygon(b){
       const [minx,miny,maxx,maxy]=b; return turf.bboxPolygon([minx,miny,maxx,maxy]);
     }
-    function ensureAOIPolygon(){
+    function ensureAOIPolygon(fallbackBBox=null){
       if(polygonFC && polygonFC.features?.length) return polygonFC;
       // build polygon from bbox if no polygon uploaded
-      return {type:'FeatureCollection',features:[bboxToPolygon(currentBBox())]};
+      const bbox = fallbackBBox || parseBBox();
+      return {type:'FeatureCollection',features:[bboxToPolygon(bbox)]};
     }
     function anyPolygon(){ return polygonFC && polygonFC.features?.length ? polygonFC : null }
 
@@ -362,8 +370,13 @@
       const seedStr = document.getElementById('seed').value || 'seed';
       const rng = mulberry32(strToSeed(seedStr));
       const snap = document.getElementById('snap').value==='yes';
-      const polyFC = ensureAOIPolygon();
-      const bbox = currentBBox();
+      let bbox;
+      try{
+        bbox = parseBBox();
+      }catch(err){
+        alert(err.message); status('Fix bounding box values to continue'); return;
+      }
+      const polyFC = ensureAOIPolygon(bbox);
       const cell = Math.max(0.0001, parseFloat(document.getElementById('cell').value||'0.02'));
       const mindist = Math.max(1, parseFloat(document.getElementById('mindist').value||'500'));
 
@@ -378,7 +391,11 @@
       pointsFC = out;
       ptsLayer.clearLayers(); ptsLayer.addData(out);
       if(pointsFC.features.length){ map.fitBounds(ptsLayer.getBounds(), {maxZoom:14}); }
-      status(`Done. ${pointsFC.features.length} point(s).`);
+      if(!anyPolygon()){
+        status(`Done. ${pointsFC.features.length} point(s). Using bounding box as AOI.`);
+      }else{
+        status(`Done. ${pointsFC.features.length} point(s). AOI from polygon.`);
+      }
       document.getElementById('downloadGeoJSON').disabled = !pointsFC.features.length;
       document.getElementById('downloadCSV').disabled = !pointsFC.features.length;
       document.getElementById('copyGeoJSON').disabled = !pointsFC.features.length;
