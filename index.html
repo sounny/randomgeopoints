@@ -182,7 +182,12 @@
         alert(err.message);
       }
     }
-    document.getElementById('fitBbox').addEventListener('click', fitBboxOnMap);
+    document.getElementById('fitBbox').addEventListener('click', ()=>{
+      const bbox = currentBBox();
+      const check = validateBBox(bbox);
+      if(!check.ok){ alert(check.message); status('Fix bounding box values'); return; }
+      fitBboxOnMap();
+    });
 
     // ---------- Load GeoJSON ----------
     document.getElementById('geojson').addEventListener('change', async (e)=>{
@@ -216,6 +221,16 @@
       }
       return [minx,miny,maxx,maxy];
     }
+    function validateBBox(b){
+      if(!b.every(v=> Number.isFinite(v))){
+        return {ok:false, message:'Bounding box values must be valid numbers.'};
+      }
+      const [minx,miny,maxx,maxy] = b;
+      if(minx>=maxx || miny>=maxy){
+        return {ok:false, message:'BBox min values must be less than max values.'};
+      }
+      return {ok:true};
+    }
     function bboxToPolygon(b){
       const [minx,miny,maxx,maxy]=b; return turf.bboxPolygon([minx,miny,maxx,maxy]);
     }
@@ -228,13 +243,14 @@
     function anyPolygon(){ return polygonFC && polygonFC.features?.length ? polygonFC : null }
 
     // ---------- Methods ----------
-    function uniformInBBox(n, bbox, rng){
+    function uniformInBBox(n, bbox, rng, snap){
       const [minx,miny,maxx,maxy] = bbox;
       const feats = [];
       for(let i=0;i<n;i++){
         let x = randBetween(rng,minx,maxx);
         let y = randBetween(rng,miny,maxy);
-        feats.push(turf.point([x,y],{i:i+1,method:'uniform-bbox'}));
+        const snapped = [snap?snap6(x):x, snap?snap6(y):y];
+        feats.push(turf.point(snapped,{i:i+1,method:'uniform-bbox'}));
       }
       return {type:'FeatureCollection',features:feats};
     }
@@ -382,7 +398,7 @@
 
       status('Working…');
       let out=null;
-      if(method==='uniform-bbox') out = uniformInBBox(n, bbox, rng);
+      if(method==='uniform-bbox') out = uniformInBBox(n, bbox, rng, snap);
       else if(method==='uniform-poly') out = uniformInPolygon(n, polyFC, rng, snap);
       else if(method==='stratified') out = stratifiedJitter(n, polyFC, rng, cell, snap);
       else if(method==='poisson') out = poissonDiskInPolygon(n, polyFC, rng, mindist, snap);
