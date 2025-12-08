@@ -16,3 +16,4 @@ This file acts as a shared memory and change log for the **Random Geo Points** p
 ## Change Log
 
 - 2024-06-03: Initialized repository memory, added README, and fixed CSV export MIME type.
+- 2024-06-04: Added bbox validation and clearer AOI status messaging in the UI.
