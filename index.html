@@ -180,7 +180,12 @@
       const maxy = parseFloat(document.getElementById('maxy').value);
       const b = [[miny,minx],[maxy,maxx]]; map.fitBounds(b);
     }
-    document.getElementById('fitBbox').addEventListener('click', fitBboxOnMap);
+    document.getElementById('fitBbox').addEventListener('click', ()=>{
+      const bbox = currentBBox();
+      const check = validateBBox(bbox);
+      if(!check.ok){ alert(check.message); status('Fix bounding box values'); return; }
+      fitBboxOnMap();
+    });
 
     // ---------- Load GeoJSON ----------
     document.getElementById('geojson').addEventListener('change', async (e)=>{
@@ -201,32 +206,48 @@
     });
 
     // ---------- Geometry helpers ----------
+    function readNumber(id){
+      const v = parseFloat(document.getElementById(id).value);
+      return Number.isFinite(v) ? v : null;
+    }
     function currentBBox(){
       return [
-        parseFloat(document.getElementById('minx').value),
-        parseFloat(document.getElementById('miny').value),
-        parseFloat(document.getElementById('maxx').value),
-        parseFloat(document.getElementById('maxy').value)
+        readNumber('minx'),
+        readNumber('miny'),
+        readNumber('maxx'),
+        readNumber('maxy')
       ];
+    }
+    function validateBBox(b){
+      if(!b.every(v=> Number.isFinite(v))){
+        return {ok:false, message:'Bounding box values must be valid numbers.'};
+      }
+      const [minx,miny,maxx,maxy] = b;
+      if(minx>=maxx || miny>=maxy){
+        return {ok:false, message:'BBox min values must be less than max values.'};
+      }
+      return {ok:true};
     }
     function bboxToPolygon(b){
       const [minx,miny,maxx,maxy]=b; return turf.bboxPolygon([minx,miny,maxx,maxy]);
     }
-    function ensureAOIPolygon(){
+    function ensureAOIPolygon(bbox){
       if(polygonFC && polygonFC.features?.length) return polygonFC;
       // build polygon from bbox if no polygon uploaded
-      return {type:'FeatureCollection',features:[bboxToPolygon(currentBBox())]};
+      if(bbox) return {type:'FeatureCollection',features:[bboxToPolygon(bbox)]};
+      return null;
     }
     function anyPolygon(){ return polygonFC && polygonFC.features?.length ? polygonFC : null }
 
     // ---------- Methods ----------
-    function uniformInBBox(n, bbox, rng){
+    function uniformInBBox(n, bbox, rng, snap){
       const [minx,miny,maxx,maxy] = bbox;
       const feats = [];
       for(let i=0;i<n;i++){
         let x = randBetween(rng,minx,maxx);
         let y = randBetween(rng,miny,maxy);
-        feats.push(turf.point([x,y],{i:i+1,method:'uniform-bbox'}));
+        const snapped = [snap?snap6(x):x, snap?snap6(y):y];
+        feats.push(turf.point(snapped,{i:i+1,method:'uniform-bbox'}));
       }
       return {type:'FeatureCollection',features:feats};
     }
@@ -362,14 +383,17 @@
       const seedStr = document.getElementById('seed').value || 'seed';
       const rng = mulberry32(strToSeed(seedStr));
       const snap = document.getElementById('snap').value==='yes';
-      const polyFC = ensureAOIPolygon();
       const bbox = currentBBox();
+      const bboxCheck = validateBBox(bbox);
+      if(!bboxCheck.ok){ alert(bboxCheck.message); status('Fix bounding box values'); return; }
+      const polyFC = ensureAOIPolygon(bbox);
+      if(!polyFC){ alert('Failed to build AOI polygon.'); status('AOI error'); return; }
       const cell = Math.max(0.0001, parseFloat(document.getElementById('cell').value||'0.02'));
       const mindist = Math.max(1, parseFloat(document.getElementById('mindist').value||'500'));
 
       status('Working…');
       let out=null;
-      if(method==='uniform-bbox') out = uniformInBBox(n, bbox, rng);
+      if(method==='uniform-bbox') out = uniformInBBox(n, bbox, rng, snap);
       else if(method==='uniform-poly') out = uniformInPolygon(n, polyFC, rng, snap);
       else if(method==='stratified') out = stratifiedJitter(n, polyFC, rng, cell, snap);
       else if(method==='poisson') out = poissonDiskInPolygon(n, polyFC, rng, mindist, snap);
@@ -378,7 +402,10 @@
       pointsFC = out;
       ptsLayer.clearLayers(); ptsLayer.addData(out);
       if(pointsFC.features.length){ map.fitBounds(ptsLayer.getBounds(), {maxZoom:14}); }
-      status(`Done. ${pointsFC.features.length} point(s).`);
+      const summary = pointsFC.features.length===n ?
+        `Done. ${pointsFC.features.length} point(s).` :
+        `Done with ${pointsFC.features.length}/${n} point(s). Consider enlarging the AOI or loosening spacing.`;
+      status(summary);
       document.getElementById('downloadGeoJSON').disabled = !pointsFC.features.length;
       document.getElementById('downloadCSV').disabled = !pointsFC.features.length;
       document.getElementById('copyGeoJSON').disabled = !pointsFC.features.length;
