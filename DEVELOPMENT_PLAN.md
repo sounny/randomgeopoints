@@ -1,93 +1,40 @@
-# Development Plan: Random GeoPoints App - COMPLETED
+# Development Plan – Next Iteration (Dec 2025)
 
-## Based on: report.md & developmentplan.md Analysis
+Source: `references/random_point_area_sampling_dissertation.md` (random point and area sampling dissertation).
 
-### Implementation Status
+## Guiding principles pulled from the dissertation
+- Match the sampling unit to the map meaning: support both point-based and area/plot-based validation units; avoid pixel-only validation when MMU is larger.
+- Keep probability-based selection visible: expose inclusion probabilities/weights and the sampling frame used for each method.
+- Use estimators/designs that align: avoid treating stratified or cluster designs as simple random; keep stratum metadata with samples.
+- Promote spatial spread: provide a spatially balanced design option for lower variance under spatial autocorrelation.
+- Document response design hooks: include metadata fields to record labeling rules and reference source notes for reproducibility.
 
-| Feature                         | Required (from docs) | Status | Notes                                  |
-|---------------------------------|----------------------|--------|----------------------------------------|
-| Draw AOI on Map                 | Yes (§3.1)           | ✅ Done | Leaflet.draw rectangle tool            |
-| Drag & Drop GeoJSON             | Yes (§3.1)           | ✅ Done | Both AOI and Strata zones              |
-| Strata File Upload              | Yes (§3.2)           | ✅ Done | Separate drop zone                     |
-| Per-Stratum Sample Allocation   | Yes (§3.2)           | ✅ Done | Dynamic input fields per stratum       |
-| Spatial Autocorrelation Warning | Yes (§4.1 Phase 3)   | ✅ Done | Warning banner citing Congalton (1988) |
-| Sample Size Calculator          | Yes (Report §IV-B)   | ✅ Done | Cochran's formula (95% CI)             |
-| Loading Indicators              | Yes (§4.1 Phase 3)   | ✅ Done | Full-screen overlay with spinner       |
-| Error Messages                  | Yes (§4.1 Phase 3)   | ✅ Done | Try-catch with alerts                  |
-| NNI Validation                  | Report §V            | ✅ Done | Clustered/Random/Dispersed indicator   |
-| Inline Help                     | Yes (§4.1 Phase 3)   | ✅ Done | Help text throughout                   |
+## Near-term feature goals
+1) Area/plot sampling
+- Add a “random plots” mode that samples square plots (user-defined side length in meters) fully contained in the AOI.
+- Export plots as polygons with unit metadata (plot area, side length, unit type) and design weights.
 
----
+2) Spatially balanced option
+- Implement a Halton/BAS-lite spatially balanced point sampler inside the AOI to reduce clumping versus pure SRS.
+- Surface when this method is chosen and how many attempts were required to fill the sample.
 
-## Sampling Methods Implemented
+3) Design weights and metadata
+- Attach `inclusionProb` and `weightAreaSqM` to all outputs; for stratified designs compute weights using stratum area and sample counts.
+- Add per-feature fields for stratum ID, cluster ID (where applicable), and unit type (point vs plot).
+- Add a UI “Design metadata” panel summarizing method, unit of analysis, weighting rule, and AOI/strata area totals.
 
-Based on **Section III** of the report (Core Random Sampling Designs):
+4) UI/UX tightening
+- Clean unit labels (km^2) and warn when AOI is missing or plot placement fails.
+- Keep advanced options context-sensitive (only show plot size for area sampling, etc.).
 
-1. **Simple Random Sampling (SRS)**
-   - `uniform-bbox`: Points within bounding box
-   - `uniform-poly`: Points within polygon AOI
+5) Export/reporting
+- Include a `design` metadata block in GeoJSON/CSV exports (method, unit type, AOI area, stratum areas, seed).
+- Provide a short inline note reminding users to align analysis/variance estimation with the selected design.
 
-2. **Systematic Sampling (SSS)** - Report §III-B
-   - `systematic`: Fixed-interval rectangular grid
-   - `hex`: Hexagonal lattice (optimal packing)
+## Non-goals for this iteration
+- Full variance estimators for cluster designs, change-area estimators, or reference-label uncertainty modeling.
+- GUI for multi-date change sampling or boundary quality scoring.
 
-3. **Stratified Random Sampling (StRS)** - Report §III-C
-   - `stratified`: Grid cells with random jitter
-   - `stratified-prop`: Per-strata proportional allocation
-   - `stratified-equal`: Per-strata equal allocation
-
-4. **Cluster Sampling** - Report §III-D
-   - `cluster`: Two-stage sampling (PSU centers + SSU points within radius)
-
-5. **Poisson Disk Sampling**
-   - `poisson`: Blue-noise with minimum separation constraint
-
----
-
-## Key Features Added
-
-### 1. Interactive AOI Definition
-- **Drag & Drop**: Drop GeoJSON files directly onto the interface
-- **Draw on Map**: Click "Draw AOI" button to activate rectangle drawing tool
-- **Manual BBox**: Enter coordinates directly
-
-### 2. Strata Support (§3.2)
-- Upload separate strata GeoJSON file
-- Automatically detects property fields
-- Dynamic UI generates input fields for each unique stratum value
-- Supports both proportional and equal allocation modes
-
-### 3. Statistical Tools
-- **Sample Size Calculator**: Implements Cochran's formula per Olofsson et al. (2014)
-  ```
-  n = (Z² × p × q) / E²
-  ```
-- **NNI Display**: Shows spatial pattern indicator after generation
-
-### 4. Spatial Autocorrelation Warning (§4.1 Phase 3)
-Added prominent warning banner:
-> "This tool generates sample locations based on probability sampling designs. 
-> It does not account for spatial autocorrelation. Ensure samples are sufficiently 
-> independent per Congalton (1988) guidelines."
-
-### 5. Export Enhancements
-- GeoJSON includes metadata (timestamp, seed, method, count)
-- CSV export with point ID, coordinates, method
-
----
-
-## Technical Implementation
-
-- **Libraries**: Leaflet 1.9.4, Leaflet.draw 1.0.4, Turf.js 6.5.0
-- **Architecture**: Single-page client-side application
-- **No dependencies**: Vanilla JavaScript, no build step required
-- **Responsive**: Works on desktop browsers
-
----
-
-## References Addressed
-
-1. Olofsson et al. (2014) - Sample size methodology ✅
-2. Cochran (1977) - Sampling techniques formula ✅
-3. Congalton (1988) - Spatial autocorrelation warning ✅
-4. FGDC Standards - Probability sampling principles ✅
+## Validation plan
+- Run `npx htmlhint index.html` after changes.
+- Manual smoke tests: generate samples for each method (including plots and spatially balanced) and confirm features render, stay inside AOI, and export weights/metadata.

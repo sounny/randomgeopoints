@@ -19,3 +19,4 @@ This file acts as a shared memory and change log for the **Random Geo Points** p
 - 2024-06-08: Added bbox validation, snap support for bbox sampling, and clearer status messaging.
 - 2024-06-04: Added bbox validation and clearer AOI status messaging in the UI.
 - 2025-12-12: Fixed JavaScript bug - `currentBBox()` was undefined; replaced with inline bbox parsing in the 'Fit Map to BBox' button handler.
+- 2025-12-12: Added spatially balanced sampling, random plot (area) sampling, design metadata/weights, and refreshed development plan and README.

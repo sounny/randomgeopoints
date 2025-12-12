@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Random Point Generator — Geospatial Sampling Tool</title>
+  <title>Random Point Generator - Geospatial Sampling Tool</title>
   <meta name="description"
     content="Generate statistically valid random point samples for geospatial accuracy validation. Probability-based sampling with GeoJSON export.">
   <link rel="preconnect" href="https://unpkg.com" />
@@ -310,12 +310,12 @@
 <body>
   <div class="loading-overlay" id="loadingOverlay">
     <div class="spinner"></div>
-    <div class="help">Generating points...</div>
+    <div class="help">Generating samples...</div>
   </div>
 
   <header>
     <div>
-      <h1>🎯 Random Point Generator</h1>
+      <h1>Random Point Generator</h1>
       <div class="help">Probability-based geospatial sampling for accuracy validation</div>
     </div>
     <span class="status-pill" id="status">Ready</span>
@@ -336,12 +336,14 @@
             <option value="systematic">Systematic Grid (Rectangular)</option>
             <option value="hex">Hexagonal Lattice</option>
             <option value="stratified">Stratified Grid (Jittered)</option>
+            <option value="balanced">Spatially Balanced (Halton)</option>
           </optgroup>
           <optgroup label="Advanced">
             <option value="cluster">Cluster Sampling</option>
             <option value="poisson">Poisson Disk (Blue Noise)</option>
             <option value="stratified-prop">Stratified by Strata (Proportional)</option>
             <option value="stratified-equal">Stratified by Strata (Equal)</option>
+            <option value="plots">Random Plots (Square)</option>
           </optgroup>
         </select>
       </div>
@@ -350,7 +352,7 @@
       <div class="section">
         <h2>Area of Interest (AOI)</h2>
         <div class="drop-zone" id="dropZone">
-          <div>📂 Drop GeoJSON here or click</div>
+          <div>Drop AOI GeoJSON here or click</div>
           <input id="geojson" type="file" accept=".json,.geojson" style="display:none" />
         </div>
         <div class="help">Or define bounding box:</div>
@@ -361,8 +363,8 @@
           <input id="maxy" type="number" step="any" placeholder="Max Lat" value="29.9" />
         </div>
         <div class="grid2">
-          <button class="btn outline" id="fitBbox">🗺️ Fit Map</button>
-          <button class="btn outline" id="drawRect">✏️ Draw AOI</button>
+          <button class="btn outline" id="fitBbox">Fit Map</button>
+          <button class="btn outline" id="drawRect">Draw AOI</button>
         </div>
       </div>
 
@@ -370,7 +372,7 @@
       <div class="section">
         <h2>Strata File (Optional)</h2>
         <div class="drop-zone" id="strataDropZone">
-          <div>🗂️ Drop Strata GeoJSON</div>
+          <div>Drop strata GeoJSON here or click</div>
           <input id="strataFile" type="file" accept=".json,.geojson" style="display:none" />
         </div>
         <div id="strataConfig" style="display:none">
@@ -423,6 +425,14 @@
             <input id="mindist" type="number" value="500" />
           </div>
         </details>
+
+        <details id="opt-plot">
+          <summary>Plot Options</summary>
+          <div class="inner">
+            <label>Plot side (m)</label>
+            <input id="plotSide" type="number" value="60" min="1" />
+          </div>
+        </details>
       </div>
 
       <button class="btn primary" id="run" style="padding:0.75rem; font-size:0.9rem">Generate Points</button>
@@ -431,13 +441,13 @@
       <div class="section">
         <h2>Results & Export</h2>
         <div class="grid2">
-          <button class="btn good" id="downloadGeoJSON" disabled>📥 GeoJSON</button>
-          <button class="btn good" id="downloadCSV" disabled>📥 CSV</button>
+          <button class="btn good" id="downloadGeoJSON" disabled>Download GeoJSON</button>
+          <button class="btn good" id="downloadCSV" disabled>Download CSV</button>
         </div>
         <div id="stats-area" class="stats-card" style="display:none">
           <div class="grid2">
             <div>
-              <div class="stats-label">Points</div>
+              <div class="stats-label">Samples</div>
               <div class="stats-val" id="pts-count">-</div>
             </div>
             <div>
@@ -452,16 +462,22 @@
               <div class="help" id="nni-desc"></div>
             </div>
             <div>
-              <div class="stats-label">Density</div>
+              <div class="stats-label">Sample Density</div>
               <div class="stats-val" id="pt-density">-</div>
             </div>
           </div>
+        </div>
+        <div id="design-meta" class="stats-card" style="display:none; margin-top:0.5rem">
+          <div class="stats-label">Design metadata</div>
+          <div class="help" id="design-method"></div>
+          <div class="help" id="design-unit"></div>
+          <div class="help" id="design-weight"></div>
         </div>
       </div>
 
       <!-- Sample Size Calculator -->
       <details>
-        <summary>📐 Sample Size Calculator</summary>
+        <summary>Sample Size Calculator</summary>
         <div class="inner">
           <div class="help">Cochran's formula (95% CI)</div>
           <div class="grid2">
@@ -484,7 +500,7 @@
 
       <!-- Warning -->
       <div class="warning-banner">
-        ⚠️ <b>Note:</b> This tool generates sample locations based on probability sampling designs.
+        <b>Note:</b> This tool generates sample locations based on probability sampling designs.
         It does not account for spatial autocorrelation. Ensure samples are sufficiently independent
         per Congalton (1988) guidelines.
       </div>
@@ -522,16 +538,26 @@
     let polygonFC = null;
     let strataFC = null;
     let pointsFC = null;
+    let designMeta = null;
     const status = msg => document.getElementById('status').textContent = msg;
     const showLoading = (show) => document.getElementById('loadingOverlay').classList.toggle('active', show);
 
+    function toggleOptions() {
+      const method = document.getElementById('method').value;
+      document.getElementById('opt-grid').style.display = ['systematic', 'hex', 'stratified'].includes(method) ? 'block' : 'none';
+      document.getElementById('opt-cluster').style.display = method === 'cluster' ? 'block' : 'none';
+      document.getElementById('opt-poisson').style.display = method === 'poisson' ? 'block' : 'none';
+      document.getElementById('opt-plot').style.display = method === 'plots' ? 'block' : 'none';
+    }
+
     // ========== Map ==========
     const map = L.map('map').setView([29.65, -82.35], 10);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OSM' }).addTo(map);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '(c) OpenStreetMap contributors' }).addTo(map);
     const aoiLayer = L.geoJSON(null, { style: { color: '#4cc9f0', weight: 2, fillOpacity: 0.1 } }).addTo(map);
     const strataLayer = L.geoJSON(null, { style: { color: '#f59e0b', weight: 1, fillOpacity: 0.15 } }).addTo(map);
     const ptsLayer = L.geoJSON(null, {
-      pointToLayer: (f, latlng) => L.circleMarker(latlng, { radius: 4, weight: 1, color: '#34d399', fillColor: '#34d399', fillOpacity: 0.9 })
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, { radius: 4, weight: 1, color: '#34d399', fillColor: '#34d399', fillOpacity: 0.9 }),
+      style: () => ({ color: '#22c55e', weight: 1.2, fillColor: '#22c55e', fillOpacity: 0.08 })
     }).addTo(map);
 
     // Draw control
@@ -589,7 +615,7 @@
         const txt = await file.text();
         const gj = JSON.parse(txt);
         zone.classList.add('has-file');
-        zone.innerHTML = `<div>✅ ${file.name}</div>`;
+        zone.innerHTML = `<div>Loaded: ${file.name}</div>`;
         callback(gj);
       } catch (err) {
         alert('Failed to load: ' + err.message);
@@ -631,6 +657,9 @@
       select.addEventListener('change', updateStrataList);
       status('Strata loaded');
     });
+
+    document.getElementById('method').addEventListener('change', toggleOptions);
+    toggleOptions();
 
     function updateStrataList() {
       if (!strataFC) return;
@@ -801,11 +830,136 @@
         let count = mode === 'equal' ? Math.ceil(n / strataFC.features.length) : (allocations[stratumName] || 50);
         const stratumFC = { type: 'FeatureCollection', features: [f] };
         const pts = uniformInPolygon(count, stratumFC, rng).features;
-        pts.forEach(p => p.properties.stratum = stratumName);
+        pts.forEach(p => {
+          p.properties.stratum = stratumName;
+          p.properties.method = mode === 'equal' ? 'stratified-equal' : 'stratified-prop';
+        });
         feats.push(...pts);
       });
       feats.forEach((f, i) => f.properties.i = i + 1);
       return { type: 'FeatureCollection', features: feats.slice(0, n) };
+    }
+
+    function halton(index, base) {
+      let result = 0;
+      let f = 1 / base;
+      let i = index;
+      while (i > 0) {
+        result += f * (i % base);
+        i = Math.floor(i / base);
+        f = f / base;
+      }
+      return result;
+    }
+
+    function spatiallyBalancedHalton(n, polyFC, rng) {
+      const bbox = turf.bbox(polyFC);
+      const feats = [];
+      let idx = Math.floor(rng() * 1000) + 1;
+      let attempts = 0;
+      while (feats.length < n && attempts < n * 500) {
+        const hx = halton(idx, 2);
+        const hy = halton(idx, 3);
+        const x = bbox[0] + (bbox[2] - bbox[0]) * hx;
+        const y = bbox[1] + (bbox[3] - bbox[1]) * hy;
+        const pt = turf.point([x, y]);
+        if (turf.booleanPointInPolygon(pt, polyFC)) {
+          feats.push(turf.point([snap6(x), snap6(y)], { i: feats.length + 1, method: 'balanced' }));
+        }
+        idx++;
+        attempts++;
+      }
+      return { type: 'FeatureCollection', features: feats, attempts };
+    }
+
+    function randomPlots(n, polyFC, rng, sideM) {
+      const bbox = turf.bbox(polyFC);
+      const midLat = (bbox[1] + bbox[3]) / 2;
+      const degPerMlon = 1 / (111320 * Math.cos(midLat * Math.PI / 180));
+      const degPerMlat = 1 / 111320;
+      const halfX = (sideM / 2) * degPerMlon;
+      const halfY = (sideM / 2) * degPerMlat;
+      const plots = [];
+      let tries = 0;
+      while (plots.length < n && tries < n * 600) {
+        tries++;
+        const cx = randBetween(rng, bbox[0], bbox[2]);
+        const cy = randBetween(rng, bbox[1], bbox[3]);
+        const center = turf.point([cx, cy]);
+        if (!turf.booleanPointInPolygon(center, polyFC)) continue;
+        const ring = [
+          [snap6(cx - halfX), snap6(cy - halfY)],
+          [snap6(cx + halfX), snap6(cy - halfY)],
+          [snap6(cx + halfX), snap6(cy + halfY)],
+          [snap6(cx - halfX), snap6(cy + halfY)],
+          [snap6(cx - halfX), snap6(cy - halfY)],
+        ];
+        const cornersInside = ring.slice(0, 4).every(c => turf.booleanPointInPolygon(turf.point(c), polyFC));
+        if (!cornersInside) continue;
+        const poly = turf.polygon([ring], { i: plots.length + 1, method: 'plots', plotSideM: sideM });
+        plots.push(poly);
+      }
+      return { type: 'FeatureCollection', features: plots, attempts: tries };
+    }
+
+    function computeStratumAreas(strataFC, field) {
+      const out = {};
+      if (!strataFC) return out;
+      strataFC.features.forEach(f => {
+        const key = f.properties?.[field] || 'Unknown';
+        out[key] = (out[key] || 0) + turf.area(f);
+      });
+      return out;
+    }
+
+    function annotateDesign(fc, opts) {
+      if (!fc?.features?.length) return null;
+      const unitType = fc.features[0].geometry.type === 'Polygon' ? 'plot' : 'point';
+      const meta = {
+        method: opts.method,
+        unitType,
+        aoiAreaSqM: opts.aoiAreaSqM,
+        seed: opts.seed,
+        weightRule: '',
+        stratumAreasSqM: null,
+        attempts: opts.attempts || null
+      };
+      const n = fc.features.length;
+
+      if (opts.method === 'stratified-prop' || opts.method === 'stratified-equal') {
+        const field = opts.strataField;
+        const areas = computeStratumAreas(opts.strataFC, field);
+        const counts = {};
+        fc.features.forEach(f => {
+          const s = f.properties?.stratum || 'Unknown';
+          counts[s] = (counts[s] || 0) + 1;
+        });
+        fc.features.forEach(f => {
+          const s = f.properties?.stratum || 'Unknown';
+          const weight = areas[s] ? areas[s] / counts[s] : opts.aoiAreaSqM / n;
+          f.properties.weightAreaSqM = weight;
+          f.properties.inclusionProb = counts[s] ? 1 / counts[s] : null;
+          f.properties.unit = unitType;
+        });
+        meta.stratumAreasSqM = areas;
+        meta.weightRule = 'Weights = stratum area / samples in stratum (assumes equal-probability within strata).';
+      } else {
+        const weight = opts.aoiAreaSqM / n;
+        fc.features.forEach(f => {
+          f.properties.weightAreaSqM = weight;
+          f.properties.inclusionProb = 1 / n;
+          f.properties.unit = unitType;
+        });
+        meta.weightRule = 'Equal probability; weightAreaSqM = AOI area / sample count.';
+      }
+
+      if (unitType === 'plot') {
+        fc.features.forEach(f => {
+          f.properties.plotAreaSqM = turf.area(f);
+        });
+      }
+
+      return meta;
     }
 
     // ========== NNI ==========
@@ -815,6 +969,7 @@
       const n = fc.features.length;
       if (n > 2000) return { val: '-', desc: 'Too many pts' };
 
+      const features = fc.features.map(f => f.geometry.type === 'Point' ? f : turf.centroid(f));
       const density = n / area;
       const expMean = 0.5 / Math.sqrt(density);
       let sum = 0;
@@ -822,7 +977,7 @@
         let minD = Infinity;
         for (let j = 0; j < n; j++) {
           if (i === j) continue;
-          const d = turf.distance(fc.features[i], fc.features[j], { units: 'meters' });
+          const d = turf.distance(features[i], features[j], { units: 'meters' });
           if (d < minD) minD = d;
         }
         sum += minD;
@@ -835,6 +990,24 @@
       return { val: nni.toFixed(2), desc };
     }
 
+    function updateDesignPanel(meta, aoiAreaKm2) {
+      const panel = document.getElementById('design-meta');
+      if (!meta) {
+        panel.style.display = 'none';
+        return;
+      }
+      panel.style.display = 'block';
+      document.getElementById('design-method').textContent = `Method: ${meta.method} | Unit: ${meta.unitType}`;
+      document.getElementById('design-unit').textContent = `AOI area: ${aoiAreaKm2.toFixed(2)} km^2`;
+      let weightLine = meta.weightRule;
+      if (meta.attempts) weightLine += ` Attempts: ${meta.attempts}.`;
+      if (meta.stratumAreasSqM) {
+        const names = Object.keys(meta.stratumAreasSqM);
+        if (names.length) weightLine += ` Strata tracked: ${names.slice(0, 3).join(', ')}${names.length > 3 ? '...' : ''}`;
+      }
+      document.getElementById('design-weight').textContent = weightLine;
+    }
+
     // ========== Run ==========
     document.getElementById('run').addEventListener('click', () => {
       const method = document.getElementById('method').value;
@@ -844,13 +1017,16 @@
       const nClusters = parseInt(document.getElementById('nClusters').value) || 10;
       const clusterRad = parseFloat(document.getElementById('clusterRad').value) || 1000;
       const mindist = parseFloat(document.getElementById('mindist').value) || 500;
+      const plotSide = parseFloat(document.getElementById('plotSide').value) || 60;
 
       let bbox;
       try { bbox = parseBBox(); } catch (e) { alert(e.message); return; }
       const polyFC = ensureAOI(bbox);
+      const aoiAreaSqM = turf.area(polyFC);
 
       showLoading(true);
       status('Generating...');
+      designMeta = null;
 
       setTimeout(() => {
         try {
@@ -861,19 +1037,29 @@
           else if (method === 'hex') out = hexLattice(n, polyFC, cell);
           else if (method === 'stratified') out = stratifiedJitter(n, polyFC, rng, cell);
           else if (method === 'cluster') out = clusterSampling(n, polyFC, rng, nClusters, clusterRad);
+          else if (method === 'balanced') out = spatiallyBalancedHalton(n, polyFC, rng);
           else if (method === 'poisson') out = poissonDisk(n, polyFC, rng, mindist);
+          else if (method === 'plots') out = randomPlots(n, polyFC, rng, plotSide);
           else if (method === 'stratified-prop' || method === 'stratified-equal') {
             if (!strataFC) { alert('Upload strata file first'); showLoading(false); return; }
             out = stratifiedByStrata(n, strataFC, rng, method === 'stratified-equal' ? 'equal' : 'prop');
           }
 
           if (!out?.features?.length) {
-            alert('No points generated');
+            alert('No samples generated');
             showLoading(false);
             return;
           }
 
           pointsFC = out;
+          designMeta = annotateDesign(pointsFC, {
+            method,
+            aoiAreaSqM,
+            seed: document.getElementById('seed').value,
+            strataField: document.getElementById('strataField').value,
+            strataFC,
+            attempts: out.attempts
+          });
           ptsLayer.clearLayers();
           ptsLayer.addData(out);
           map.fitBounds(ptsLayer.getBounds(), { maxZoom: 14 });
@@ -881,18 +1067,20 @@
           aoiLayer.addData(polyFC);
 
           // Stats
-          const aoiArea = (polygonFC ? turf.area(polygonFC) : turf.area(turf.bboxPolygon(bbox))) / 1e6;
+          const aoiArea = aoiAreaSqM / 1e6;
           const nni = calculateNNI(pointsFC);
           document.getElementById('stats-area').style.display = 'block';
           document.getElementById('pts-count').textContent = pointsFC.features.length;
-          document.getElementById('aoi-area').textContent = aoiArea.toFixed(2) + ' km²';
-          document.getElementById('pt-density').textContent = (pointsFC.features.length / aoiArea).toFixed(1) + '/km²';
+          document.getElementById('aoi-area').textContent = aoiArea.toFixed(2) + ' km^2';
+          document.getElementById('pt-density').textContent = (pointsFC.features.length / aoiArea).toFixed(1) + ' / km^2';
           document.getElementById('nni-val').textContent = nni.val;
           document.getElementById('nni-desc').textContent = nni.desc;
+          updateDesignPanel(designMeta, aoiArea);
 
           document.getElementById('downloadGeoJSON').disabled = false;
           document.getElementById('downloadCSV').disabled = false;
-          status(`Done: ${pointsFC.features.length} pts`);
+          const statusMsg = pointsFC.features.length === n ? `Done: ${pointsFC.features.length} samples` : `Done: ${pointsFC.features.length}/${n} samples (inside AOI)`;
+          status(statusMsg);
         } catch (err) {
           alert('Error: ' + err.message);
           status('Error');
@@ -928,20 +1116,51 @@
         metadata: {
           generated: new Date().toISOString(),
           seed: document.getElementById('seed').value,
-          method: document.getElementById('method').value,
-          count: pointsFC.features.length
+          method: designMeta?.method || document.getElementById('method').value,
+          unit: designMeta?.unitType || 'point',
+          count: pointsFC.features.length,
+          aoiAreaSqM: designMeta?.aoiAreaSqM,
+          weightRule: designMeta?.weightRule,
+          stratumAreasSqM: designMeta?.stratumAreasSqM || null
         }
       };
-      downloadFile('random_points.geojson', JSON.stringify(data, null, 2), 'application/geo+json');
+      downloadFile('random_samples.geojson', JSON.stringify(data, null, 2), 'application/geo+json');
     });
 
     document.getElementById('downloadCSV').addEventListener('click', () => {
       if (!pointsFC) return;
-      const rows = [['id', 'lon', 'lat', 'method']];
+      const rows = [['id', 'lon', 'lat', 'method', 'unit', 'stratum', 'cluster', 'weightAreaSqM', 'inclusionProb', 'plotAreaSqM', 'geometry']];
       pointsFC.features.forEach(f => {
-        rows.push([f.properties.i, f.geometry.coordinates[0], f.geometry.coordinates[1], f.properties.method]);
+        const geom = f.geometry;
+        let lon = '';
+        let lat = '';
+        if (geom.type === 'Point') {
+          lon = geom.coordinates[0];
+          lat = geom.coordinates[1];
+        } else {
+          const c = turf.centroid(f);
+          lon = snap6(c.geometry.coordinates[0]);
+          lat = snap6(c.geometry.coordinates[1]);
+        }
+        rows.push([
+          f.properties.i,
+          lon,
+          lat,
+          f.properties.method,
+          f.properties.unit || '',
+          f.properties.stratum || '',
+          f.properties.cluster || '',
+          f.properties.weightAreaSqM || '',
+          f.properties.inclusionProb ?? '',
+          f.properties.plotAreaSqM || '',
+          JSON.stringify(geom)
+        ]);
       });
-      downloadFile('random_points.csv', rows.map(r => r.join(',')).join('\n'), 'text/csv');
+      const csv = rows.map(r => r.map(val => {
+        const s = val === null || val === undefined ? '' : String(val);
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      }).join(',')).join('\n');
+      downloadFile('random_samples.csv', csv, 'text/csv');
     });
 
     // Init

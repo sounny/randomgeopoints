@@ -11,9 +11,12 @@ A single-page, client-side web app for generating random geographic points insid
   - Stratified grid with jitter
   - Poisson disk / blue-noise (minimum spacing in meters)
   - Hexagonal lattice
+  - Spatially balanced (Halton / BAS-lite)
+  - Random square plots (area sampling with user-defined plot size)
 - **Controls**: Set number of points, random seed (repeatable), grid cell size and Poisson minimum distance.
+- **Design metadata**: Outputs include unit type (point vs plot), per-sample weights, inclusion probability, and strata/cluster IDs.
 - **Visualization**: Points appear on a Leaflet map for quick inspection.
-- **Export**: Download results as GeoJSON or CSV or copy GeoJSON to the clipboard.
+- **Export**: Download results as GeoJSON or CSV with design metadata fields, or copy GeoJSON to the clipboard.
 - **100% client-side**: No data leaves the browser.
 
 ## Development
