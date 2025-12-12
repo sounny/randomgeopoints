@@ -183,7 +183,12 @@
       }
     }
     document.getElementById('fitBbox').addEventListener('click', ()=>{
-      const bbox = currentBBox();
+      const bbox = [
+        parseFloat(document.getElementById('minx').value),
+        parseFloat(document.getElementById('miny').value),
+        parseFloat(document.getElementById('maxx').value),
+        parseFloat(document.getElementById('maxy').value)
+      ];
       const check = validateBBox(bbox);
       if(!check.ok){ alert(check.message); status('Fix bounding box values'); return; }
       fitBboxOnMap();
