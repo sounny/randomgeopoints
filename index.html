@@ -4,34 +4,35 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Random Point Generator — AOI & Polygon (Client‑Side)</title>
+  <title>Random Point Generator — Geospatial Sampling Tool</title>
+  <meta name="description"
+    content="Generate statistically valid random point samples for geospatial accuracy validation. Probability-based sampling with GeoJSON export.">
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <style>
     :root {
       --bg: #0f172a;
-      --panel: rgba(30, 41, 59, 0.7);
+      --panel: rgba(30, 41, 59, 0.85);
       --border: rgba(51, 65, 85, 0.5);
       --primary: #3b82f6;
-      --primary-hover: #2563eb;
       --text: #f1f5f9;
       --text-muted: #94a3b8;
-      --accent: #06b6d4;
       --success: #10b981;
       --warning: #f59e0b;
     }
 
     * {
-      box-sizing: border-box
+      box-sizing: border-box;
     }
 
     html,
     body {
-      height: 100%
+      height: 100%;
+      margin: 0;
     }
 
     body {
-      margin: 0;
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       background: var(--bg);
       color: var(--text);
@@ -40,7 +41,6 @@
       overflow: hidden;
     }
 
-    /* Glassmorphism */
     .glass {
       background: var(--panel);
       backdrop-filter: blur(12px);
@@ -49,9 +49,9 @@
     }
 
     header {
-      padding: 1rem 1.5rem;
+      padding: 0.75rem 1.5rem;
       border-bottom: 1px solid var(--border);
-      background: rgba(15, 23, 42, 0.9);
+      background: rgba(15, 23, 42, 0.95);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -59,9 +59,8 @@
 
     header h1 {
       margin: 0;
-      font-size: 1.25rem;
+      font-size: 1.1rem;
       font-weight: 700;
-      letter-spacing: -0.025em;
       background: linear-gradient(90deg, #fff, #94a3b8);
       background-clip: text;
       -webkit-background-clip: text;
@@ -70,28 +69,28 @@
 
     #app {
       display: grid;
-      grid-template-columns: 380px 1fr;
+      grid-template-columns: 400px 1fr;
       height: 100%;
       overflow: hidden;
     }
 
     #controls {
       overflow-y: auto;
-      padding: 1.5rem;
+      padding: 1.25rem;
       display: flex;
       flex-direction: column;
-      gap: 1.5rem;
+      gap: 1.25rem;
       border-right: 1px solid var(--border);
     }
 
     .section {
       display: grid;
-      gap: 0.75rem;
+      gap: 0.6rem;
     }
 
     .section h2 {
       margin: 0;
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--text-muted);
@@ -100,13 +99,13 @@
 
     label {
       display: block;
-      font-size: 0.875rem;
+      font-size: 0.8rem;
       font-weight: 500;
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.2rem;
     }
 
     .help {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       color: var(--text-muted);
       line-height: 1.4;
     }
@@ -115,12 +114,12 @@
     select,
     button {
       width: 100%;
-      padding: 0.6rem 0.75rem;
+      padding: 0.5rem 0.6rem;
       background: rgba(15, 23, 42, 0.6);
       border: 1px solid var(--border);
       border-radius: 6px;
       color: var(--text);
-      font-size: 0.875rem;
+      font-size: 0.8rem;
       transition: all 0.2s;
     }
 
@@ -128,7 +127,6 @@
     select:focus {
       outline: none;
       border-color: var(--primary);
-      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
     }
 
     .btn {
@@ -141,15 +139,10 @@
       filter: brightness(1.1);
     }
 
-    .btn:active {
-      transform: translateY(1px);
-    }
-
     .btn.primary {
       background: var(--primary);
       border: none;
       color: white;
-      box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
     }
 
     .btn.good {
@@ -167,19 +160,12 @@
     .btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
-      filter: none;
     }
 
     .grid2 {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
-    }
-
-    .grid3 {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 0.75rem;
+      gap: 0.5rem;
     }
 
     #map {
@@ -192,116 +178,227 @@
       background: rgba(0, 0, 0, 0.2);
       border-radius: 6px;
       border: 1px solid var(--border);
-      overflow: hidden;
     }
 
     details summary {
-      padding: 0.75rem;
+      padding: 0.6rem;
       cursor: pointer;
-      font-size: 0.875rem;
+      font-size: 0.8rem;
       font-weight: 500;
     }
 
     details .inner {
-      padding: 1rem;
+      padding: 0.75rem;
       border-top: 1px solid var(--border);
-      background: rgba(0, 0, 0, 0.1);
     }
 
     .stats-card {
       background: rgba(16, 185, 129, 0.1);
       border: 1px solid rgba(16, 185, 129, 0.2);
       border-radius: 6px;
-      padding: 1rem;
-      margin-top: 1rem;
+      padding: 0.75rem;
     }
 
     .stats-val {
-      font-size: 1.25rem;
+      font-size: 1.1rem;
       font-weight: 700;
       color: var(--success);
     }
 
     .stats-label {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       color: var(--text-muted);
+    }
+
+    .status-pill {
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.dragover {
+      border-color: var(--primary);
+      background: rgba(59, 130, 246, 0.1);
+    }
+
+    .drop-zone.has-file {
+      border-color: var(--success);
+      background: rgba(16, 185, 129, 0.1);
+    }
+
+    .strata-list {
+      max-height: 150px;
+      overflow-y: auto;
+      display: grid;
+      gap: 0.4rem;
+    }
+
+    .strata-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.4rem;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 4px;
+      font-size: 0.75rem;
+    }
+
+    .strata-item input {
+      width: 70px;
+      padding: 0.2rem 0.4rem;
+    }
+
+    .warning-banner {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 6px;
+      padding: 0.6rem;
+      font-size: 0.7rem;
+      color: var(--warning);
+    }
+
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(15, 23, 42, 0.9);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .loading-overlay.active {
+      display: flex;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
     }
   </style>
 </head>
 
 <body>
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <div class="help">Generating points...</div>
+  </div>
+
   <header>
-    <h1>Random Point Generator (Client‑Side)</h1>
-    <div class="help">Generate random lat/long points inside an AOI. Use a bounding box or upload a GeoJSON polygon.
-      Choose a sampling method. Export as GeoJSON or CSV. All in your browser.</div>
+    <div>
+      <h1>🎯 Random Point Generator</h1>
+      <div class="help">Probability-based geospatial sampling for accuracy validation</div>
+    </div>
+    <span class="status-pill" id="status">Ready</span>
   </header>
+
   <div id="app">
     <section id="controls" class="glass">
 
+      <!-- Sampling Strategy -->
       <div class="section">
         <h2>Sampling Strategy</h2>
-        <div class="stack">
-          <label for="method">Method</label>
-          <select id="method">
-            <optgroup label="Simple">
-              <option value="uniform-bbox">Uniform (Bounding Box)</option>
-              <option value="uniform-poly">Uniform (Polygon)</option>
-            </optgroup>
-            <optgroup label="Grid / Systematic">
-              <option value="hex">Hexagonal Lattice</option>
-              <option value="systematic">Systematic Grid (Rectangular)</option>
-              <option value="stratified">Stratified Grid (Jittered)</option>
-            </optgroup>
-            <optgroup label="Advanced / Ecological">
-              <option value="cluster">Cluster Sampling</option>
-              <option value="poisson">Poisson Disk (Blue Noise)</option>
-              <option value="stratified-prop">Stratified (Prop. to Area)</option>
-              <option value="stratified-equal">Stratified (Equal per Feature)</option>
-            </optgroup>
-          </select>
-          <div class="help" id="method-desc">Select a method to see details.</div>
-        </div>
+        <select id="method">
+          <optgroup label="Simple Random">
+            <option value="uniform-bbox">Uniform (Bounding Box)</option>
+            <option value="uniform-poly">Uniform (Polygon/AOI)</option>
+          </optgroup>
+          <optgroup label="Systematic / Grid">
+            <option value="systematic">Systematic Grid (Rectangular)</option>
+            <option value="hex">Hexagonal Lattice</option>
+            <option value="stratified">Stratified Grid (Jittered)</option>
+          </optgroup>
+          <optgroup label="Advanced">
+            <option value="cluster">Cluster Sampling</option>
+            <option value="poisson">Poisson Disk (Blue Noise)</option>
+            <option value="stratified-prop">Stratified by Strata (Proportional)</option>
+            <option value="stratified-equal">Stratified by Strata (Equal)</option>
+          </optgroup>
+        </select>
       </div>
 
+      <!-- AOI Definition -->
       <div class="section">
         <h2>Area of Interest (AOI)</h2>
-        <label>Drag & Drop GeoJSON or define BBox</label>
+        <div class="drop-zone" id="dropZone">
+          <div>📂 Drop GeoJSON here or click</div>
+          <input id="geojson" type="file" accept=".json,.geojson" style="display:none" />
+        </div>
+        <div class="help">Or define bounding box:</div>
         <div class="grid2">
-          <input id="minx" type="number" step="0.000001" placeholder="Min Lon" value="-82.6" />
-          <input id="miny" type="number" step="0.000001" placeholder="Min Lat" value="29.5" />
-          <input id="maxx" type="number" step="0.000001" placeholder="Max Lon" value="-82.1" />
-          <input id="maxy" type="number" step="0.000001" placeholder="Max Lat" value="29.9" />
+          <input id="minx" type="number" step="any" placeholder="Min Lon" value="-82.6" />
+          <input id="miny" type="number" step="any" placeholder="Min Lat" value="29.5" />
+          <input id="maxx" type="number" step="any" placeholder="Max Lon" value="-82.1" />
+          <input id="maxy" type="number" step="any" placeholder="Max Lat" value="29.9" />
         </div>
         <div class="grid2">
-          <button class="btn outline" id="fitBbox">Set Map to BBox</button>
-          <div style="position:relative">
-            <button class="btn outline" onclick="document.getElementById('geojson').click()">Upload GeoJSON</button>
-            <input id="geojson" type="file" accept=".json,.geojson,application/geo+json"
-              style="position:absolute;top:0;left:0;opacity:0;width:100%;height:100%;cursor:pointer" />
-          </div>
+          <button class="btn outline" id="fitBbox">🗺️ Fit Map</button>
+          <button class="btn outline" id="drawRect">✏️ Draw AOI</button>
         </div>
       </div>
 
+      <!-- Strata (Optional) -->
+      <div class="section">
+        <h2>Strata File (Optional)</h2>
+        <div class="drop-zone" id="strataDropZone">
+          <div>🗂️ Drop Strata GeoJSON</div>
+          <input id="strataFile" type="file" accept=".json,.geojson" style="display:none" />
+        </div>
+        <div id="strataConfig" style="display:none">
+          <label>Property for strata ID:</label>
+          <select id="strataField"></select>
+          <div id="strataList" class="strata-list"></div>
+        </div>
+      </div>
+
+      <!-- Parameters -->
       <div class="section">
         <h2>Parameters</h2>
         <div class="grid2">
           <div>
-            <label for="npts">Total Points</label>
-            <input id="npts" type="number" min="1" step="1" value="200" />
+            <label>Total Points</label>
+            <input id="npts" type="number" min="1" value="200" />
           </div>
           <div>
-            <label for="seed">RNG Seed</label>
+            <label>RNG Seed</label>
             <input id="seed" type="text" value="12345" />
           </div>
         </div>
 
-        <!-- Dynamic Options -->
-        <details id="opt-grid" open>
-          <summary>Grid / Spacing Options</summary>
+        <details id="opt-grid">
+          <summary>Grid Options</summary>
           <div class="inner">
-            <label for="cell">Grid Cell Size (Degrees)</label>
-            <input id="cell" type="number" step="0.0001" value="0.02" />
-            <div class="help">Used for Hex, Systematic, Stratified Grid</div>
+            <label>Cell Size (degrees)</label>
+            <input id="cell" type="number" step="0.001" value="0.02" />
           </div>
         </details>
 
@@ -314,7 +411,7 @@
             </div>
             <div>
               <label>Radius (m)</label>
-              <input id="clusterRad" type="number" value="1000" step="100" />
+              <input id="clusterRad" type="number" value="1000" />
             </div>
           </div>
         </details>
@@ -326,502 +423,532 @@
             <input id="mindist" type="number" value="500" />
           </div>
         </details>
-
       </div>
 
-      <button class="btn primary" id="run" style="padding: 1rem; font-size:1rem;">Generate Points</button>
+      <button class="btn primary" id="run" style="padding:0.75rem; font-size:0.9rem">Generate Points</button>
 
+      <!-- Results -->
       <div class="section">
-        <h2>Exports & Analysis</h2>
+        <h2>Results & Export</h2>
         <div class="grid2">
-          <button class="btn good" id="downloadGeoJSON" disabled>GeoJSON</button>
-          <button class="btn good" id="downloadCSV" disabled>CSV</button>
+          <button class="btn good" id="downloadGeoJSON" disabled>📥 GeoJSON</button>
+          <button class="btn good" id="downloadCSV" disabled>📥 CSV</button>
         </div>
         <div id="stats-area" class="stats-card" style="display:none">
-          <div class="stats-label">Nearest Neighbor Index (NNI)</div>
-          <div class="stats-val" id="nni-val">-</div>
-          <div class="help" id="nni-desc"></div>
+          <div class="grid2">
+            <div>
+              <div class="stats-label">Points</div>
+              <div class="stats-val" id="pts-count">-</div>
+            </div>
+            <div>
+              <div class="stats-label">AOI Area</div>
+              <div class="stats-val" id="aoi-area">-</div>
+            </div>
+          </div>
+          <div class="grid2" style="margin-top:0.5rem">
+            <div>
+              <div class="stats-label">NNI</div>
+              <div class="stats-val" id="nni-val">-</div>
+              <div class="help" id="nni-desc"></div>
+            </div>
+            <div>
+              <div class="stats-label">Density</div>
+              <div class="stats-val" id="pt-density">-</div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <details style="margin-top:1rem">
-        <summary>Method Notes</summary>
-        <div class="inner help">
-          <ul style="padding-left:1.2rem;margin:0">
-            <li><b>Uniform</b>: Purely random. Standard baseline.</li>
-            <li><b>Systematic</b>: Fixed grid spacing. Good for complete coverage.</li>
-            <li><b>Stratified</b>: Ensures coverage across different strata/polygons.</li>
-            <li><b>Cluster</b>: Two-stage sampling (centers then points).</li>
-            <li><b>Poisson</b>: Random but with minimum distance constraint.</li>
-          </ul>
+      <!-- Sample Size Calculator -->
+      <details>
+        <summary>📐 Sample Size Calculator</summary>
+        <div class="inner">
+          <div class="help">Cochran's formula (95% CI)</div>
+          <div class="grid2">
+            <div>
+              <label>Std. Error</label>
+              <input id="calc-se" type="number" value="0.01" step="0.005" />
+            </div>
+            <div>
+              <label>Exp. Accuracy</label>
+              <input id="calc-p" type="number" value="0.85" step="0.05" />
+            </div>
+          </div>
+          <button class="btn outline" id="calcSampleSize" style="margin-top:0.5rem">Calculate</button>
+          <div id="calc-result" style="display:none; margin-top:0.5rem">
+            <div class="stats-label">Recommended N:</div>
+            <div class="stats-val" id="calc-n">-</div>
+          </div>
         </div>
       </details>
+
+      <!-- Warning -->
+      <div class="warning-banner">
+        ⚠️ <b>Note:</b> This tool generates sample locations based on probability sampling designs.
+        It does not account for spatial autocorrelation. Ensure samples are sufficiently independent
+        per Congalton (1988) guidelines.
+      </div>
+
     </section>
 
     <div id="map"></div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
   <script>
-    // ---------- Utility: seeded RNG (Mulberry32) ----------
+    // ========== Utilities ==========
     function strToSeed(str) {
-      let h = 1779033703 ^ str.length; for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); } return (h >>> 0);
+      let h = 1779033703 ^ str.length;
+      for (let i = 0; i < str.length; i++) {
+        h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+        h = (h << 13) | (h >>> 19);
+      }
+      return h >>> 0;
     }
     function mulberry32(a) {
-      return function () { let t = a += 0x6D2B79F5; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+      return function () {
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ t >>> 15, t | 1);
+        t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+      };
     }
-    function choice(rng, arr) { return arr[Math.floor(rng() * arr.length)] }
     function randBetween(rng, min, max) { return min + (max - min) * rng(); }
-    function snap6(x) { return Math.round(x * 1e6) / 1e6 }
+    function snap6(x) { return Math.round(x * 1e6) / 1e6; }
 
-    // ---------- State ----------
-    let polygonFC = null; // GeoJSON FeatureCollection of polygon(s)
-    let pointsFC = null;  // output FeatureCollection
+    // ========== State ==========
+    let polygonFC = null;
+    let strataFC = null;
+    let pointsFC = null;
     const status = msg => document.getElementById('status').textContent = msg;
+    const showLoading = (show) => document.getElementById('loadingOverlay').classList.toggle('active', show);
 
-    // ---------- Map ----------
-    const map = L.map('map', { scrollWheelZoom: true }).setView([29.65, -82.35], 10);
-    const base = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OSM' }).addTo(map);
-    const aoiLayer = L.geoJSON(null, { style: { color: '#4cc9f0', weight: 2, fillOpacity: 0.08 } }).addTo(map);
-    const ptsLayer = L.geoJSON(null, { pointToLayer: (f, latlng) => L.circleMarker(latlng, { radius: 4, weight: 1, color: '#34d399', fillColor: '#34d399', fillOpacity: 0.9 }) }).addTo(map);
-    function fitBboxOnMap() {
-      try {
-        const [minx, miny, maxx, maxy] = parseBBox();
-        const b = [[miny, minx], [maxy, maxx]]; map.fitBounds(b);
-        status('Map fit to bounding box');
-      } catch (err) {
-        alert(err.message);
-      }
-    }
-    document.getElementById('fitBbox').addEventListener('click', () => {
-      const bbox = [
-        parseFloat(document.getElementById('minx').value),
-        parseFloat(document.getElementById('miny').value),
-        parseFloat(document.getElementById('maxx').value),
-        parseFloat(document.getElementById('maxy').value)
-      ];
-      const check = validateBBox(bbox);
-      if (!check.ok) { alert(check.message); status('Fix bounding box values'); return; }
-      fitBboxOnMap();
+    // ========== Map ==========
+    const map = L.map('map').setView([29.65, -82.35], 10);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OSM' }).addTo(map);
+    const aoiLayer = L.geoJSON(null, { style: { color: '#4cc9f0', weight: 2, fillOpacity: 0.1 } }).addTo(map);
+    const strataLayer = L.geoJSON(null, { style: { color: '#f59e0b', weight: 1, fillOpacity: 0.15 } }).addTo(map);
+    const ptsLayer = L.geoJSON(null, {
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, { radius: 4, weight: 1, color: '#34d399', fillColor: '#34d399', fillOpacity: 0.9 })
+    }).addTo(map);
+
+    // Draw control
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+    const drawControl = new L.Control.Draw({
+      draw: { polygon: false, polyline: false, circle: false, marker: false, circlemarker: false, rectangle: true },
+      edit: false
     });
 
-    // ---------- Load GeoJSON ----------
-    document.getElementById('geojson').addEventListener('change', async (e) => {
-      const file = e.target.files?.[0]; if (!file) return;
+    let drawMode = false;
+    document.getElementById('drawRect').addEventListener('click', () => {
+      if (!drawMode) {
+        map.addControl(drawControl);
+        drawMode = true;
+        status('Draw a rectangle on the map');
+      }
+    });
+
+    map.on(L.Draw.Event.CREATED, (e) => {
+      drawnItems.clearLayers();
+      drawnItems.addLayer(e.layer);
+      const bounds = e.layer.getBounds();
+      document.getElementById('minx').value = bounds.getWest().toFixed(6);
+      document.getElementById('miny').value = bounds.getSouth().toFixed(6);
+      document.getElementById('maxx').value = bounds.getEast().toFixed(6);
+      document.getElementById('maxy').value = bounds.getNorth().toFixed(6);
+      map.removeControl(drawControl);
+      drawMode = false;
+      status('Rectangle drawn - BBox updated');
+    });
+
+    // ========== Drop Zones ==========
+    function setupDropZone(zoneId, fileInputId, onLoad) {
+      const zone = document.getElementById(zoneId);
+      const input = document.getElementById(fileInputId);
+
+      zone.addEventListener('click', () => input.click());
+      zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file) handleFile(file, zone, onLoad);
+      });
+      input.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) handleFile(file, zone, onLoad);
+      });
+    }
+
+    async function handleFile(file, zone, callback) {
       try {
         const txt = await file.text();
         const gj = JSON.parse(txt);
-        const geom = gj.type === 'FeatureCollection' ? gj : (gj.type === 'Feature' ? { type: 'FeatureCollection', features: [gj] } : null);
-        if (!geom) throw new Error('Unsupported GeoJSON type');
-        // Keep only Polygon/MultiPolygon
-        const polys = { type: 'FeatureCollection', features: geom.features.filter(f => ['Polygon', 'MultiPolygon'].includes(f.geometry?.type)) };
-        if (!polys.features.length) throw new Error('No Polygon/MultiPolygon found');
-        polygonFC = polys;
-        aoiLayer.clearLayers(); aoiLayer.addData(polys);
-        map.fitBounds(aoiLayer.getBounds());
-        status('Loaded polygon AOI');
-      } catch (err) { alert('Failed to load GeoJSON: ' + err.message); }
+        zone.classList.add('has-file');
+        zone.innerHTML = `<div>✅ ${file.name}</div>`;
+        callback(gj);
+      } catch (err) {
+        alert('Failed to load: ' + err.message);
+      }
+    }
+
+    setupDropZone('dropZone', 'geojson', (gj) => {
+      const fc = gj.type === 'FeatureCollection' ? gj : { type: 'FeatureCollection', features: [gj] };
+      const polys = { type: 'FeatureCollection', features: fc.features.filter(f => ['Polygon', 'MultiPolygon'].includes(f.geometry?.type)) };
+      if (!polys.features.length) { alert('No polygons found'); return; }
+      polygonFC = polys;
+      aoiLayer.clearLayers();
+      aoiLayer.addData(polys);
+      map.fitBounds(aoiLayer.getBounds());
+      status('AOI loaded');
     });
 
-    // ---------- Geometry helpers ----------
-    function parseBBox() {
-      const minx = parseFloat(document.getElementById('minx').value);
-      const miny = parseFloat(document.getElementById('miny').value);
-      const maxx = parseFloat(document.getElementById('maxx').value);
-      const maxy = parseFloat(document.getElementById('maxy').value);
-      if ([minx, miny, maxx, maxy].some(v => Number.isNaN(v))) {
-        throw new Error('Bounding box values must be numbers');
-      }
-      if (minx >= maxx || miny >= maxy) {
-        throw new Error('Bounding box min values must be smaller than max values');
-      }
-      return [minx, miny, maxx, maxy];
-    }
-    function validateBBox(b) {
-      if (!b.every(v => Number.isFinite(v))) {
-        return { ok: false, message: 'Bounding box values must be valid numbers.' };
-      }
-      const [minx, miny, maxx, maxy] = b;
-      if (minx >= maxx || miny >= maxy) {
-        return { ok: false, message: 'BBox min values must be less than max values.' };
-      }
-      return { ok: true };
-    }
-    function bboxToPolygon(b) {
-      const [minx, miny, maxx, maxy] = b; return turf.bboxPolygon([minx, miny, maxx, maxy]);
-    }
-    function ensureAOIPolygon(fallbackBBox = null) {
-      if (polygonFC && polygonFC.features?.length) return polygonFC;
-      // build polygon from bbox if no polygon uploaded
-      const bbox = fallbackBBox || parseBBox();
-      return { type: 'FeatureCollection', features: [bboxToPolygon(bbox)] };
-    }
-    function anyPolygon() { return polygonFC && polygonFC.features?.length ? polygonFC : null }
+    setupDropZone('strataDropZone', 'strataFile', (gj) => {
+      const fc = gj.type === 'FeatureCollection' ? gj : { type: 'FeatureCollection', features: [gj] };
+      strataFC = fc;
+      strataLayer.clearLayers();
+      strataLayer.addData(fc);
 
-    // ---------- Methods ----------
-    function uniformInBBox(n, bbox, rng, snap) {
-      const [minx, miny, maxx, maxy] = bbox;
+      // Find all properties
+      const allProps = new Set();
+      fc.features.forEach(f => { if (f.properties) Object.keys(f.properties).forEach(k => allProps.add(k)); });
+
+      const select = document.getElementById('strataField');
+      select.innerHTML = '';
+      allProps.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p;
+        opt.textContent = p;
+        select.appendChild(opt);
+      });
+
+      document.getElementById('strataConfig').style.display = 'block';
+      updateStrataList();
+      select.addEventListener('change', updateStrataList);
+      status('Strata loaded');
+    });
+
+    function updateStrataList() {
+      if (!strataFC) return;
+      const field = document.getElementById('strataField').value;
+      const uniqueVals = [...new Set(strataFC.features.map(f => f.properties?.[field] || 'Unknown'))];
+      const list = document.getElementById('strataList');
+      list.innerHTML = '';
+      uniqueVals.forEach(v => {
+        const div = document.createElement('div');
+        div.className = 'strata-item';
+        div.innerHTML = `<span>${v}</span><input type="number" data-strata="${v}" value="50" min="1"/>`;
+        list.appendChild(div);
+      });
+    }
+
+    // ========== BBox ==========
+    function parseBBox() {
+      const vals = ['minx', 'miny', 'maxx', 'maxy'].map(id => parseFloat(document.getElementById(id).value));
+      if (vals.some(isNaN)) throw new Error('Invalid bbox values');
+      if (vals[0] >= vals[2] || vals[1] >= vals[3]) throw new Error('Min must be less than max');
+      return vals;
+    }
+
+    document.getElementById('fitBbox').addEventListener('click', () => {
+      try {
+        const [minx, miny, maxx, maxy] = parseBBox();
+        map.fitBounds([[miny, minx], [maxy, maxx]]);
+        status('Map fit to bbox');
+      } catch (err) { alert(err.message); }
+    });
+
+    function ensureAOI(bbox) {
+      if (polygonFC?.features?.length) return polygonFC;
+      return { type: 'FeatureCollection', features: [turf.bboxPolygon(bbox)] };
+    }
+
+    // ========== Sampling Methods ==========
+    function uniformInBBox(n, bbox, rng) {
       const feats = [];
       for (let i = 0; i < n; i++) {
-        let x = randBetween(rng, minx, maxx);
-        let y = randBetween(rng, miny, maxy);
-        const snapped = [snap ? snap6(x) : x, snap ? snap6(y) : y];
-        feats.push(turf.point(snapped, { i: i + 1, method: 'uniform-bbox' }));
+        const x = snap6(randBetween(rng, bbox[0], bbox[2]));
+        const y = snap6(randBetween(rng, bbox[1], bbox[3]));
+        feats.push(turf.point([x, y], { i: i + 1, method: 'uniform-bbox' }));
       }
       return { type: 'FeatureCollection', features: feats };
     }
 
-    function uniformInPolygon(n, polyFC, rng, snap) {
+    function uniformInPolygon(n, polyFC, rng) {
       const bbox = turf.bbox(polyFC);
       const feats = [];
-      let tries = 0, maxTries = n * 2000;
-      while (feats.length < n && tries < maxTries) {
+      let tries = 0;
+      while (feats.length < n && tries < n * 2000) {
         tries++;
         const x = randBetween(rng, bbox[0], bbox[2]);
         const y = randBetween(rng, bbox[1], bbox[3]);
         const pt = turf.point([x, y]);
         if (turf.booleanPointInPolygon(pt, polyFC)) {
-          const c = pt.geometry.coordinates;
-          feats.push(turf.point([snap ? snap6(c[0]) : c[0], snap ? snap6(c[1]) : c[1]], { i: feats.length + 1, method: 'uniform-poly' }));
+          feats.push(turf.point([snap6(x), snap6(y)], { i: feats.length + 1, method: 'uniform-poly' }));
         }
       }
       return { type: 'FeatureCollection', features: feats };
     }
 
-    function stratifiedJitter(n, polyFC, rng, cellDeg, snap) {
-      // Build grid over bbox, then sample up to n cells, place random pt in each cell that falls in polygon
+    function systematicGrid(n, polyFC, cellDeg) {
+      const bbox = turf.bbox(polyFC);
+      const pts = [];
+      for (let x = bbox[0]; x <= bbox[2]; x += cellDeg) {
+        for (let y = bbox[1]; y <= bbox[3]; y += cellDeg) {
+          pts.push([x, y]);
+        }
+      }
+      const inside = pts.filter(p => turf.booleanPointInPolygon(turf.point(p), polyFC));
+      return { type: 'FeatureCollection', features: inside.map((p, i) => turf.point([snap6(p[0]), snap6(p[1])], { i: i + 1, method: 'systematic' })) };
+    }
+
+    function hexLattice(n, polyFC, cellDeg) {
+      const bbox = turf.bbox(polyFC);
+      const pts = [];
+      const dy = cellDeg * Math.sqrt(3) / 2;
+      let row = 0;
+      for (let y = bbox[1]; y <= bbox[3]; y += dy) {
+        const xStart = bbox[0] + (row % 2 ? cellDeg / 2 : 0);
+        for (let x = xStart; x <= bbox[2]; x += cellDeg) pts.push([x, y]);
+        row++;
+      }
+      const inside = pts.filter(p => turf.booleanPointInPolygon(turf.point(p), polyFC));
+      const step = Math.max(1, Math.floor(inside.length / n));
+      const picked = inside.filter((_, i) => i % step === 0).slice(0, n);
+      return { type: 'FeatureCollection', features: picked.map((p, i) => turf.point([snap6(p[0]), snap6(p[1])], { i: i + 1, method: 'hex' })) };
+    }
+
+    function stratifiedJitter(n, polyFC, rng, cellDeg) {
       const bbox = turf.bbox(polyFC);
       const cells = [];
       for (let x = bbox[0]; x < bbox[2]; x += cellDeg) {
-        for (let y = bbox[1]; y < bbox[3]; y += cellDeg) {
-          cells.push([x, y]);
-        }
+        for (let y = bbox[1]; y < bbox[3]; y += cellDeg) cells.push([x, y]);
       }
-      // random order of cells
-      for (let i = cells.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1));[cells[i], cells[j]] = [cells[j], cells[i]]; }
-      const feats = []; let idx = 0, safety = 0;
-      while (feats.length < n && idx < cells.length && safety < cells.length * 5) {
-        const [x0, y0] = cells[idx++];
-        safety++;
-        const x1 = x0 + cellDeg, y1 = y0 + cellDeg;
-        const px = randBetween(rng, x0, x1);
-        const py = randBetween(rng, y0, y1);
-        const pt = turf.point([px, py]);
-        if (turf.booleanPointInPolygon(pt, polyFC)) {
-          const c = pt.geometry.coordinates;
-          feats.push(turf.point([snap ? snap6(c[0]) : c[0], snap ? snap6(c[1]) : c[1]], { i: feats.length + 1, method: 'stratified' }));
+      for (let i = cells.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [cells[i], cells[j]] = [cells[j], cells[i]];
+      }
+      const feats = [];
+      for (const [x0, y0] of cells) {
+        if (feats.length >= n) break;
+        const px = randBetween(rng, x0, x0 + cellDeg);
+        const py = randBetween(rng, y0, y0 + cellDeg);
+        if (turf.booleanPointInPolygon(turf.point([px, py]), polyFC)) {
+          feats.push(turf.point([snap6(px), snap6(py)], { i: feats.length + 1, method: 'stratified' }));
         }
       }
       return { type: 'FeatureCollection', features: feats };
     }
 
-    // Approx meters per degree at mid-lat for Poisson grid spacing
-    function metersPerDegree(lat) { return 111320 * Math.cos(lat * Math.PI / 180); }
+    function clusterSampling(n, polyFC, rng, nClusters, radiusM) {
+      const centers = uniformInPolygon(nClusters, polyFC, rng).features;
+      const feats = [];
+      const ptsPerCluster = Math.ceil(n / centers.length);
+      centers.forEach((c, idx) => {
+        for (let i = 0; i < ptsPerCluster && feats.length < n; i++) {
+          const [cx, cy] = c.geometry.coordinates;
+          const mpdLat = 111320;
+          const mpdLon = 111320 * Math.cos(cy * Math.PI / 180);
+          const r = radiusM * Math.sqrt(rng());
+          const theta = rng() * 2 * Math.PI;
+          const nx = cx + (r * Math.cos(theta)) / mpdLon;
+          const ny = cy + (r * Math.sin(theta)) / mpdLat;
+          feats.push(turf.point([snap6(nx), snap6(ny)], { i: feats.length + 1, cluster: idx + 1, method: 'cluster' }));
+        }
+      });
+      return { type: 'FeatureCollection', features: feats };
+    }
 
-    function poissonDiskInPolygon(targetN, polyFC, rng, minDistMeters, snap) {
-      // Bridson algorithm within polygon bbox, reject points outside polygon
+    function poissonDisk(n, polyFC, rng, minDistM) {
       const bbox = turf.bbox(polyFC);
       const midLat = (bbox[1] + bbox[3]) / 2;
-      const mpd = metersPerDegree(midLat); // meters per degree longitude approx
-      const minDistDegX = minDistMeters / mpd;
-      const minDistDegY = minDistMeters / 111320; // meters per degree lat
-      const k = 30; // attempts per active point
-
-      function gridIndex(x, y, cell) { return [Math.floor((x - bbox[0]) / cell[0]), Math.floor((y - bbox[1]) / cell[1])]; }
-      const cell = [minDistDegX / Math.SQRT2, minDistDegY / Math.SQRT2];
-      const grid = new Map();
-      const active = [];
+      const mpd = 111320 * Math.cos(midLat * Math.PI / 180);
+      const minDistDegX = minDistM / mpd;
+      const minDistDegY = minDistM / 111320;
       const pts = [];
 
-      function place(p) {
-        const key = gridIndex(p[0], p[1], cell).join(',');
-        grid.set(key, p); active.push(p); pts.push(p); return p;
-      }
-      function inPoly(p) { return turf.booleanPointInPolygon(turf.point(p), polyFC); }
-      function farEnough(p) {
-        const gi = gridIndex(p[0], p[1], cell); const neigh = [];
-        for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) neigh.push([gi[0] + dx, gi[1] + dy].join(','));
-        for (const key of neigh) {
-          const q = grid.get(key); if (!q) continue;
-          const dx = (p[0] - q[0]) / (minDistDegX); const dy = (p[1] - q[1]) / (minDistDegY);
-          if (dx * dx + dy * dy < 1) return false;
-        }
-        return true;
-      }
-      // Initial seed: pick random point inside polygon
-      let seeded = false; let guard = 0;
-      while (!seeded && guard < 5000) {
-        guard++;
+      // Simple poisson-like
+      let tries = 0;
+      while (pts.length < n && tries < n * 100) {
+        tries++;
         const x = randBetween(rng, bbox[0], bbox[2]);
         const y = randBetween(rng, bbox[1], bbox[3]);
-        const p = [x, y]; if (inPoly(p)) { place(p); seeded = true; }
-      }
-      if (!seeded) return { type: 'FeatureCollection', features: [] };
-
-      while (active.length && pts.length < targetN) {
-        const aidx = Math.floor(rng() * active.length);
-        const a = active[aidx]; let found = false;
-        for (let i = 0; i < k; i++) {
-          const ang = rng() * Math.PI * 2;
-          const r = (1 + rng()) * Math.max(minDistDegX, minDistDegY);
-          const candidate = [a[0] + r * Math.cos(ang), a[1] + r * Math.sin(ang)];
-          if (candidate[0] < bbox[0] || candidate[0] > bbox[2] || candidate[1] < bbox[1] || candidate[1] > bbox[3]) continue;
-          if (inPoly(candidate) && farEnough(candidate)) { place(candidate); found = true; break; }
+        if (!turf.booleanPointInPolygon(turf.point([x, y]), polyFC)) continue;
+        let tooClose = false;
+        for (const p of pts) {
+          const dx = (x - p[0]) / minDistDegX;
+          const dy = (y - p[1]) / minDistDegY;
+          if (dx * dx + dy * dy < 1) { tooClose = true; break; }
         }
-        if (!found) { active.splice(aidx, 1); }
+        if (!tooClose) pts.push([x, y]);
       }
-      const feats = pts.map((p, i) => turf.point([snap ? snap6(p[0]) : p[0], snap ? snap6(p[1]) : p[1]], { i: i + 1, method: 'poisson', minDist_m: minDistMeters }));
-      return { type: 'FeatureCollection', features: feats };
+      return { type: 'FeatureCollection', features: pts.map((p, i) => turf.point([snap6(p[0]), snap6(p[1])], { i: i + 1, method: 'poisson' })) };
     }
 
-    function hexLatticeInPolygon(n, polyFC, cellDeg, snap) {
-      // Build hex grid, then clip points inside polygon, then downsample to n
-      const bbox = turf.bbox(polyFC);
-      const hexPts = [];
-      const dx = cellDeg; const dy = cellDeg * Math.sqrt(3) / 2; // vertical spacing
-      let row = 0;
-      for (let y = bbox[1]; y <= bbox[3]; y += dy) {
-        const xStart = bbox[0] + (row % 2 ? dx / 2 : 0);
-        for (let x = xStart; x <= bbox[2]; x += dx) {
-          hexPts.push([x, y]);
-        }
-        row++;
-      }
-      const inside = hexPts.filter(p => turf.booleanPointInPolygon(turf.point(p), polyFC));
-      // Downsample evenly to n if needed, but for hex usually we want the full grid? 
-      // Existing logic downsampled. We'll keep it consistent.
-      const step = Math.max(1, Math.floor(inside.length / Math.max(1, n)));
-      const picked = inside.filter((_, i) => i % step === 0).slice(0, n);
-      const feats = picked.map((p, i) => turf.point([snap ? snap6(p[0]) : p[0], snap ? snap6(p[1]) : p[1]], { i: i + 1, method: 'hex' }));
-      return { type: 'FeatureCollection', features: feats };
-    }
+    function stratifiedByStrata(n, strataFC, rng, mode) {
+      const field = document.getElementById('strataField').value;
+      const inputs = document.querySelectorAll('#strataList input');
+      const allocations = {};
+      inputs.forEach(inp => { allocations[inp.dataset.strata] = parseInt(inp.value) || 50; });
 
-    // ---------- New Methods ----------
-    function systematicGrid(n, polyFC, cellDeg, snap) {
-      const bbox = turf.bbox(polyFC);
-      const pts = [];
-      // Simple rectangular grid
-      for (let x = bbox[0]; x <= bbox[2]; x += cellDeg) {
-        for (let y = bbox[1]; y <= bbox[3]; y += cellDeg) { pts.push([x, y]); }
-      }
-      const inside = pts.filter(p => turf.booleanPointInPolygon(turf.point(p), polyFC));
-      const feats = inside.map((p, i) => turf.point([snap ? snap6(p[0]) : p[0], snap ? snap6(p[1]) : p[1]], { i: i + 1, method: 'systematic' }));
-      return { type: 'FeatureCollection', features: feats };
-    }
-
-    function clusterSampling(totalN, polyFC, rng, nClusters, radiusM, snap) {
-      // 1. Pick centers (random inside polygon)
-      const centers = uniformInPolygon(nClusters, polyFC, rng, false).features;
       const feats = [];
-      // Allocate points per cluster
-      const ptsPerCluster = Math.ceil(totalN / Math.max(1, centers.length));
-
-      centers.forEach((center, idx) => {
-        for (let i = 0; i < ptsPerCluster; i++) {
-          // Random point within radius
-          const centerCoords = center.geometry.coordinates;
-          // Approx conversion: 1 deg lat ~= 111320m. 
-          // 1 deg lon = 111320 * cos(lat).
-          const mpdLat = 111320;
-          const mpdLon = 111320 * Math.cos(centerCoords[1] * Math.PI / 180);
-
-          const rM = radiusM * Math.sqrt(rng()); // uniform area
-          const theta = rng() * 2 * Math.PI;
-
-          const dLat = (rM * Math.sin(theta)) / mpdLat;
-          const dLon = (rM * Math.cos(theta)) / mpdLon;
-
-          const nx = centerCoords[0] + dLon;
-          const ny = centerCoords[1] + dLat;
-
-          feats.push(turf.point([snap ? snap6(nx) : nx, snap ? snap6(ny) : ny], { i: feats.length + 1, cluster: idx + 1, method: 'cluster' }));
-        }
+      strataFC.features.forEach(f => {
+        const stratumName = f.properties?.[field] || 'Unknown';
+        let count = mode === 'equal' ? Math.ceil(n / strataFC.features.length) : (allocations[stratumName] || 50);
+        const stratumFC = { type: 'FeatureCollection', features: [f] };
+        const pts = uniformInPolygon(count, stratumFC, rng).features;
+        pts.forEach(p => p.properties.stratum = stratumName);
+        feats.push(...pts);
       });
-      return { type: 'FeatureCollection', features: feats.slice(0, totalN) };
-    }
-
-    function stratifiedByFeature(totalN, polyFC, rng, mode, snap) {
-      const features = polyFC.features;
-      const feats = [];
-      if (mode === 'equal') {
-        const perFeat = Math.ceil(totalN / features.length);
-        features.forEach(f => {
-          feats.push(...uniformInPolygon(perFeat, { type: 'FeatureCollection', features: [f] }, rng, snap).features);
-        });
-      } else {
-        const areas = features.map(f => turf.area(f));
-        const totalArea = areas.reduce((a, b) => a + b, 0);
-        features.forEach((f, i) => {
-          const count = Math.round(totalN * (areas[i] / totalArea));
-          if (count > 0) {
-            feats.push(...uniformInPolygon(count, { type: 'FeatureCollection', features: [f] }, rng, snap).features);
-          }
-        });
-      }
-      // Re-index
       feats.forEach((f, i) => f.properties.i = i + 1);
-      return { type: 'FeatureCollection', features: feats.slice(0, totalN) };
+      return { type: 'FeatureCollection', features: feats.slice(0, n) };
     }
 
+    // ========== NNI ==========
     function calculateNNI(fc) {
-      if (!fc || fc.features.length < 2) return { val: '-', desc: 'Insufficient points' };
-      // Area: Use polygon area if available, else bbox area
-      let area = 0;
-      if (anyPolygon()) area = turf.area(anyPolygon());
-      else area = turf.area(turf.bboxPolygon(turf.bbox(fc)));
-
+      if (!fc || fc.features.length < 2) return { val: '-', desc: 'N/A' };
+      const area = polygonFC ? turf.area(polygonFC) : turf.area(turf.bboxPolygon(parseBBox()));
       const n = fc.features.length;
-      if (n > 3000) return { val: '-', desc: 'Too many points for NNI' }; // perf safety
+      if (n > 2000) return { val: '-', desc: 'Too many pts' };
 
       const density = n / area;
-      const expMeanDist = 0.5 / Math.sqrt(density);
-
-      let sumDist = 0;
-      // Note: turf.nearestPoint is slow O(N^2).
-      const fcs = fc.features;
+      const expMean = 0.5 / Math.sqrt(density);
+      let sum = 0;
       for (let i = 0; i < n; i++) {
-        let minDist = Infinity;
-        const p1 = fcs[i].geometry.coordinates;
+        let minD = Infinity;
         for (let j = 0; j < n; j++) {
           if (i === j) continue;
-          const p2 = fcs[j].geometry.coordinates;
-          // Fast euclidean approx for speed (deg) or use turf.distance? 
-          // turf.distance is accurate but slower.
-          // Let's use turf.distance but optimization:
-          const d = turf.distance(fcs[i], fcs[j], { units: 'meters' });
-          if (d < minDist) minDist = d;
+          const d = turf.distance(fc.features[i], fc.features[j], { units: 'meters' });
+          if (d < minD) minD = d;
         }
-        sumDist += minDist;
+        sum += minD;
       }
-      const obsMeanDist = sumDist / n;
-      const nni = obsMeanDist / expMeanDist;
-
-      let d = 'Random';
-      if (nni < 0.9) d = 'Clustered';
-      if (nni > 1.1) d = 'Dispersed';
-      return { val: nni.toFixed(3), desc: `${d} (R=${nni.toFixed(2)})` };
+      const obsMean = sum / n;
+      const nni = obsMean / expMean;
+      let desc = 'Random';
+      if (nni < 0.9) desc = 'Clustered';
+      if (nni > 1.1) desc = 'Dispersed';
+      return { val: nni.toFixed(2), desc };
     }
 
-    // ---------- Run ----------
-    document.getElementById('method').addEventListener('change', (e) => {
-      const m = e.target.value;
-      const show = (ids) => ids.forEach(id => document.getElementById(id).style.display = 'block');
-      // Hide all dynamic options first
-      ['opt-grid', 'opt-cluster', 'opt-poisson'].forEach(id => document.getElementById(id).style.display = 'none');
-
-      if (['hex', 'systematic', 'stratified'].includes(m)) show(['opt-grid']);
-      if (m === 'cluster') show(['opt-cluster']);
-      if (m === 'poisson') show(['opt-poisson']);
-    });
-    // Trigger init state
-    document.getElementById('method').dispatchEvent(new Event('change'));
-
+    // ========== Run ==========
     document.getElementById('run').addEventListener('click', () => {
       const method = document.getElementById('method').value;
-      const n = Math.max(1, parseInt(document.getElementById('npts').value || '1', 10));
-      const seedStr = document.getElementById('seed').value || 'seed';
-      const rng = mulberry32(strToSeed(seedStr));
-      const snap = true; // Always snap to 6 decimals for cleanliness
+      const n = Math.max(1, parseInt(document.getElementById('npts').value) || 200);
+      const rng = mulberry32(strToSeed(document.getElementById('seed').value || 'seed'));
+      const cell = parseFloat(document.getElementById('cell').value) || 0.02;
+      const nClusters = parseInt(document.getElementById('nClusters').value) || 10;
+      const clusterRad = parseFloat(document.getElementById('clusterRad').value) || 1000;
+      const mindist = parseFloat(document.getElementById('mindist').value) || 500;
 
       let bbox;
-      try {
-        bbox = parseBBox();
-      } catch (err) {
-        alert(err.message); status('Fix bounding box values to continue'); return;
-      }
-      const polyFC = ensureAOIPolygon(bbox);
-      const cell = Math.max(0.0001, parseFloat(document.getElementById('cell').value || '0.02'));
-      const mindist = Math.max(1, parseFloat(document.getElementById('mindist').value || '500'));
-      const nClusters = Math.max(1, parseFloat(document.getElementById('nClusters').value || '10'));
-      const clusterRad = Math.max(1, parseFloat(document.getElementById('clusterRad').value || '1000'));
+      try { bbox = parseBBox(); } catch (e) { alert(e.message); return; }
+      const polyFC = ensureAOI(bbox);
 
-      status('Working…');
-      // Async to let UI render 'Working'
+      showLoading(true);
+      status('Generating...');
+
       setTimeout(() => {
-        let out = null;
         try {
-          if (method === 'uniform-bbox') out = uniformInBBox(n, bbox, rng, snap);
-          else if (method === 'uniform-poly') out = uniformInPolygon(n, polyFC, rng, snap);
-          else if (method === 'stratified') out = stratifiedJitter(n, polyFC, rng, cell, snap);
-          else if (method === 'poisson') out = poissonDiskInPolygon(n, polyFC, rng, mindist, snap);
-          else if (method === 'hex') out = hexLatticeInPolygon(n, polyFC, cell, snap);
-          else if (method === 'systematic') out = systematicGrid(n, polyFC, cell, snap);
-          else if (method === 'cluster') out = clusterSampling(n, polyFC, rng, nClusters, clusterRad, snap);
-          else if (method === 'stratified-prop') out = stratifiedByFeature(n, polyFC, rng, 'prop', snap);
-          else if (method === 'stratified-equal') out = stratifiedByFeature(n, polyFC, rng, 'equal', snap);
+          let out;
+          if (method === 'uniform-bbox') out = uniformInBBox(n, bbox, rng);
+          else if (method === 'uniform-poly') out = uniformInPolygon(n, polyFC, rng);
+          else if (method === 'systematic') out = systematicGrid(n, polyFC, cell);
+          else if (method === 'hex') out = hexLattice(n, polyFC, cell);
+          else if (method === 'stratified') out = stratifiedJitter(n, polyFC, rng, cell);
+          else if (method === 'cluster') out = clusterSampling(n, polyFC, rng, nClusters, clusterRad);
+          else if (method === 'poisson') out = poissonDisk(n, polyFC, rng, mindist);
+          else if (method === 'stratified-prop' || method === 'stratified-equal') {
+            if (!strataFC) { alert('Upload strata file first'); showLoading(false); return; }
+            out = stratifiedByStrata(n, strataFC, rng, method === 'stratified-equal' ? 'equal' : 'prop');
+          }
+
+          if (!out?.features?.length) {
+            alert('No points generated');
+            showLoading(false);
+            return;
+          }
+
+          pointsFC = out;
+          ptsLayer.clearLayers();
+          ptsLayer.addData(out);
+          map.fitBounds(ptsLayer.getBounds(), { maxZoom: 14 });
+          aoiLayer.clearLayers();
+          aoiLayer.addData(polyFC);
+
+          // Stats
+          const aoiArea = (polygonFC ? turf.area(polygonFC) : turf.area(turf.bboxPolygon(bbox))) / 1e6;
+          const nni = calculateNNI(pointsFC);
+          document.getElementById('stats-area').style.display = 'block';
+          document.getElementById('pts-count').textContent = pointsFC.features.length;
+          document.getElementById('aoi-area').textContent = aoiArea.toFixed(2) + ' km²';
+          document.getElementById('pt-density').textContent = (pointsFC.features.length / aoiArea).toFixed(1) + '/km²';
+          document.getElementById('nni-val').textContent = nni.val;
+          document.getElementById('nni-desc').textContent = nni.desc;
+
+          document.getElementById('downloadGeoJSON').disabled = false;
+          document.getElementById('downloadCSV').disabled = false;
+          status(`Done: ${pointsFC.features.length} pts`);
         } catch (err) {
-          alert('Error generating points: ' + err.message);
+          alert('Error: ' + err.message);
           status('Error');
-          return;
         }
-
-        if (!out || !out.features.length) {
-          alert('No points generated. Check AOI coverage or parameters.');
-          status('No points generated.');
-          return;
-        }
-
-        pointsFC = out;
-        ptsLayer.clearLayers(); ptsLayer.addData(out);
-        // Only zoom if bbox changed drastically? 
-        // If points are generated, fit valid bounds of points
-        map.fitBounds(ptsLayer.getBounds(), { maxZoom: 14 });
-
-        // Calculate Stats
-        const stats = calculateNNI(pointsFC);
-        document.getElementById('stats-area').style.display = 'block';
-        document.getElementById('nni-val').textContent = stats.val;
-        document.getElementById('nni-desc').textContent = stats.desc;
-
-        if (!anyPolygon()) {
-          status(`Done. ${pointsFC.features.length} pts. (BBox AOI)`);
-        } else {
-          status(`Done. ${pointsFC.features.length} pts. (Polygon AOI)`);
-        }
-        document.getElementById('downloadGeoJSON').disabled = false;
-        document.getElementById('downloadCSV').disabled = false;
-        // document.getElementById('copyGeoJSON').disabled = false; // logic in HTML replacement used 'disabled' props
-
-        // Draw AOI source used
-        aoiLayer.clearLayers(); aoiLayer.addData(polyFC);
-      }, 50);
+        showLoading(false);
+      }, 100);
     });
 
-    // ---------- Exports ----------
-    function saveText(name, text, mime = 'application/json') {
-      const blob = new Blob([text], { type: mime });
-      const url = URL.createObjectURL(blob);
+    // ========== Sample Size Calculator ==========
+    document.getElementById('calcSampleSize').addEventListener('click', () => {
+      const se = parseFloat(document.getElementById('calc-se').value) || 0.01;
+      const p = parseFloat(document.getElementById('calc-p').value) || 0.85;
+      const Z = 1.96;
+      const n = Math.ceil((Z * Z * p * (1 - p)) / (se * se));
+      document.getElementById('calc-result').style.display = 'block';
+      document.getElementById('calc-n').textContent = n;
+    });
+
+    // ========== Exports ==========
+    function downloadFile(name, content, mime) {
+      const blob = new Blob([content], { type: mime });
       const a = document.createElement('a');
-      a.href = url;
+      a.href = URL.createObjectURL(blob);
       a.download = name;
-      document.body.appendChild(a);
       a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(a.href);
     }
-    function toCSV(fc) {
-      const rows = [['id', 'lon', 'lat', 'method']];
-      fc.features.forEach(f => {
-        const [x, y] = f.geometry.coordinates; rows.push([f.properties?.i || '', x, y, f.properties?.method || '']);
-      });
-      return rows.map(r => r.join(',')).join('\n');
-    }
+
     document.getElementById('downloadGeoJSON').addEventListener('click', () => {
       if (!pointsFC) return;
-      saveText('random_points.geojson', JSON.stringify(pointsFC), 'application/geo+json');
+      const data = {
+        ...pointsFC,
+        metadata: {
+          generated: new Date().toISOString(),
+          seed: document.getElementById('seed').value,
+          method: document.getElementById('method').value,
+          count: pointsFC.features.length
+        }
+      };
+      downloadFile('random_points.geojson', JSON.stringify(data, null, 2), 'application/geo+json');
     });
+
     document.getElementById('downloadCSV').addEventListener('click', () => {
       if (!pointsFC) return;
-      const csv = toCSV(pointsFC);
-      saveText('random_points.csv', csv, 'text/csv');
-    });
-    document.getElementById('copyGeoJSON').addEventListener('click', async () => {
-      if (!pointsFC) return; try { await navigator.clipboard.writeText(JSON.stringify(pointsFC)); status('Copied to clipboard'); } catch (e) { alert('Copy failed'); }
+      const rows = [['id', 'lon', 'lat', 'method']];
+      pointsFC.features.forEach(f => {
+        rows.push([f.properties.i, f.geometry.coordinates[0], f.geometry.coordinates[1], f.properties.method]);
+      });
+      downloadFile('random_points.csv', rows.map(r => r.join(',')).join('\n'), 'text/csv');
     });
 
     // Init
-    fitBboxOnMap();
+    try {
+      const [minx, miny, maxx, maxy] = parseBBox();
+      map.fitBounds([[miny, minx], [maxy, maxx]]);
+    } catch (e) { }
   </script>
 </body>
 
