@@ -614,6 +614,19 @@
       return result;
     };
 
+    const polygonTypes = ['Polygon', 'MultiPolygon'];
+    const extractPolygons = (input) => {
+      const fc = toFeatureCollection(input);
+      if (!fc) return [];
+      return (fc.features || []).filter(f => f?.geometry && polygonTypes.includes(f.geometry.type));
+    };
+
+    const polygonsAreaSqKm = (features) => {
+      return features.reduce((sum, feat) => sum + turf.area(feat), 0) / 1e6;
+    };
+
+    const pointInPolygons = (pt, polygons) => polygons.some(poly => turf.booleanPointInPolygon(pt, poly));
+
     /* =========================================
        UI LOGIC
        ========================================= */
@@ -634,7 +647,7 @@
     document.getElementById('method').addEventListener('change', (e) => {
       const m = e.target.value;
       const setDisplay = (id, show) => document.getElementById(id).style.display = show ? 'block' : 'none';
-      setDisplay('opt-grid', ['systematic', 'hex', 'stratified'].includes(m));
+      setDisplay('opt-grid', ['systematic', 'hex', 'stratified-prop', 'stratified-equal'].includes(m));
       setDisplay('opt-cluster', m === 'cluster');
       setDisplay('opt-plots', m === 'plots');
     });
@@ -704,8 +717,9 @@
     map.on(L.Draw.Event.CREATED, (e) => {
       const layer = e.layer;
       const gj = layer.toGeoJSON();
-      state.aoi = toFeatureCollection({ type: 'FeatureCollection', features: [gj] });
-      if (!state.aoi) { alert('Could not read drawn AOI'); return; }
+      const polygons = extractPolygons({ type: 'FeatureCollection', features: [gj] });
+      if (!polygons.length) { alert('Could not read drawn AOI'); return; }
+      state.aoi = { type: 'FeatureCollection', features: polygons };
       layers.aoi.clearLayers().addData(state.aoi);
       map.removeControl(drawControl);
       document.getElementById('aoiDrop').innerHTML = '<div>Custom bbox set</div>';
@@ -732,51 +746,60 @@
     };
 
     setupDrop('aoiDrop', 'aoiInput', async (file, el) => {
-      const txt = await file.text();
-      const parsed = JSON.parse(txt);
-      const fc = toFeatureCollection(parsed);
-      if (!fc) { alert('AOI file must be a Polygon/MultiPolygon/FeatureCollection'); return; }
-      state.aoi = fc;
-      layers.aoi.clearLayers().addData(state.aoi);
-      map.fitBounds(layers.aoi.getBounds());
-      el.innerHTML = `<div>Loaded ${file.name}</div>`;
+      try {
+        const txt = await file.text();
+        const parsed = JSON.parse(txt);
+        const polygons = extractPolygons(parsed);
+        if (!polygons.length) { alert('AOI file must contain Polygon or MultiPolygon features'); return; }
+        state.aoi = { type: 'FeatureCollection', features: polygons };
+        layers.aoi.clearLayers().addData(state.aoi);
+        map.fitBounds(layers.aoi.getBounds());
+        el.innerHTML = `<div>Loaded ${file.name}</div>`;
+      } catch (err) {
+        alert('AOI file could not be read: ' + err.message);
+      }
     });
 
     setupDrop('strataDrop', 'strataInput', async (file, el) => {
-      const txt = await file.text();
-      const parsed = JSON.parse(txt);
-      const fc = toFeatureCollection(parsed);
-      if (!fc) { alert('Strata file must be a valid FeatureCollection'); return; }
-      state.strata = fc;
-      layers.strata.clearLayers().addData(state.strata);
-      el.innerHTML = `<div>Loaded ${file.name}</div>`;
-      
-      // Populate fields
-      if (!state.strata.features.length) { alert('Strata file has no features'); return; }
-      const props = Object.keys(state.strata.features[0].properties || {});
-      const sel = document.getElementById('strataField');
-      sel.innerHTML = '';
-      props.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p; opt.text = p;
-        sel.appendChild(opt);
-      });
-      document.getElementById('strataControls').style.display = 'block';
+      try {
+        const txt = await file.text();
+        const parsed = JSON.parse(txt);
+        const polygons = extractPolygons(parsed);
+        if (!polygons.length) { alert('Strata file must contain Polygon or MultiPolygon features'); return; }
+        state.strata = { type: 'FeatureCollection', features: polygons };
+        layers.strata.clearLayers().addData(state.strata);
+        el.innerHTML = `<div>Loaded ${file.name}</div>`;
+        
+        // Populate fields
+        const props = Object.keys(state.strata.features[0].properties || {});
+        if (!props.length) { alert('Strata file has no attributes to select.'); return; }
+        const sel = document.getElementById('strataField');
+        sel.innerHTML = '';
+        props.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p; opt.text = p;
+          sel.appendChild(opt);
+        });
+        document.getElementById('strataControls').style.display = 'block';
+      } catch (err) {
+        alert('Strata file could not be read: ' + err.message);
+      }
     });
 
     /* =========================================
        GENERATION LOGIC (Condensed)
        ========================================= */
     document.getElementById('genBtn').addEventListener('click', () => {
-      const aoiFC = toFeatureCollection(state.aoi);
-      if (!aoiFC) return alert('Please define an AOI first (Polygon or FeatureCollection).');
-      state.aoi = aoiFC;
+      const aoiPolygons = extractPolygons(state.aoi);
+      if (!aoiPolygons.length) { alert('Please define an AOI first (Polygon or FeatureCollection).'); return; }
+      state.aoi = { type: 'FeatureCollection', features: aoiPolygons };
       
       const config = {
-        n: parseInt(document.getElementById('nPts').value),
+        n: parseInt(document.getElementById('nPts').value, 10),
         seed: document.getElementById('seed').value,
         method: document.getElementById('method').value
       };
+      if (!Number.isFinite(config.n) || config.n < 1) { alert('Please enter a valid target sample size.'); return; }
 
       document.getElementById('loadingOverlay').style.display = 'flex';
 
@@ -786,6 +809,9 @@
           const rng = seedRNG(config.seed);
           const bbox = turf.bbox(state.aoi);
           const points = [];
+          const areaSqKm = polygonsAreaSqKm(aoiPolygons);
+          if (!areaSqKm) throw new Error('AOI area must be greater than zero.');
+          const pointInside = (pt) => pointInPolygons(pt, aoiPolygons);
           
           // Core Generation Switch
           // Note: In a real "V2", these would be modular functions. Inline for brevity here.
@@ -806,7 +832,7 @@
                 y = bbox[1] + (bbox[3]-bbox[1]) * rng();
               }
               const pt = turf.point([x, y]);
-              if (turf.booleanPointInPolygon(pt, state.aoi)) {
+              if (pointInside(pt)) {
                  points.push(pt);
               }
             }
@@ -814,15 +840,13 @@
           else if (config.method === 'plots') {
              // Plot sampling logic
              const side = parseFloat(document.getElementById('plotSide').value);
-             // ... logic similar to points but buffering ...
-             // Simplified placeholder:
              let tries = 0;
              while(points.length < config.n && tries < config.n * 500) {
                tries++;
                const x = bbox[0] + (bbox[2]-bbox[0]) * rng();
                const y = bbox[1] + (bbox[3]-bbox[1]) * rng();
                const pt = turf.point([x,y]);
-               if (turf.booleanPointInPolygon(pt, state.aoi)) {
+               if (pointInside(pt)) {
                  // Create square
                  const midLat = (bbox[1]+bbox[3])/2;
                  const degX = side / (111320 * Math.cos(midLat * Math.PI/180));
@@ -834,25 +858,44 @@
           // Fallback for others (stratified/grid) - retain V1 logic or simplified placeholder
           else {
             // Simple fallback to random if specific logic not migrated yet
-            for(let i=0; i<config.n; i++) {
+            let tries = 0;
+            while(points.length < config.n && tries < config.n * 500) {
+               tries++;
                const x = bbox[0] + (bbox[2]-bbox[0]) * rng();
                const y = bbox[1] + (bbox[3]-bbox[1]) * rng();
-               points.push(turf.point([x,y]));
+               const pt = turf.point([x,y]);
+               if (pointInside(pt)) points.push(pt);
             }
           }
+
+          if (!points.length) throw new Error('No sample locations could be generated inside the AOI with the current settings.');
 
           // Update State
           state.sample = turf.featureCollection(points);
           // Add Metadata
+          const baseWeight = points.length ? 1 / points.length : 0;
           state.sample.features.forEach((f,i) => {
-            f.properties = { id: i+1, method: config.method, ...f.properties };
+            const unitType = f.geometry.type === 'Point' ? 'point' : 'plot';
+            f.properties = { 
+              ...f.properties,
+              id: i+1, 
+              method: config.method,
+              unit_type: unitType,
+              weight: baseWeight,
+              inclusion_prob: baseWeight
+            };
           });
+          state.sample.metadata = {
+            generatedAt: new Date().toISOString(),
+            seed: config.seed,
+            method: config.method,
+            pointCount: points.length
+          };
 
           // Render
           layers.samples.clearLayers().addData(state.sample);
           
           // Update Stats
-          const areaSqKm = turf.area(state.aoi) / 1e6;
           document.getElementById('resCount').innerText = points.length;
           document.getElementById('resDensity').innerText = (points.length / areaSqKm).toFixed(2) + '/km^2';
           
@@ -886,46 +929,59 @@
        ANALYSIS LOGIC (Olofsson et al. 2014)
        ========================================= */
     setupDrop('resDrop', 'resInput', async (file, el) => {
-      const txt = await file.text();
-      let data = [];
-      
-      // Parse CSV or GeoJSON
-      if (file.name.endsWith('json')) {
-        const gj = JSON.parse(txt);
-        data = gj.features.map(f => f.properties);
-      } else {
-        // Simple CSV parser
-        const lines = txt.split('\n').map(l => l.trim()).filter(l => l);
-        const headers = lines[0].split(',');
-        data = lines.slice(1).map(l => {
-          const vals = l.split(',');
-          let obj = {};
-          headers.forEach((h,i) => obj[h] = vals[i]);
-          return obj;
-        });
+      try {
+        const txt = await file.text();
+        let data = [];
+        const name = file.name.toLowerCase();
+        
+        // Parse CSV or GeoJSON
+        if (name.endsWith('json') || name.endsWith('geojson')) {
+          const gj = JSON.parse(txt);
+          if (!Array.isArray(gj.features) || !gj.features.length) throw new Error('GeoJSON must include features with properties.');
+          data = gj.features.map(f => f.properties || {});
+        } else {
+          // Simple CSV parser
+          const lines = txt.split('\n').map(l => l.trim()).filter(l => l);
+          if (lines.length < 2) throw new Error('CSV must include a header row and at least one record.');
+          const headers = lines[0].split(',');
+          data = lines.slice(1).map(l => {
+            const vals = l.split(',');
+            let obj = {};
+            headers.forEach((h,i) => obj[h] = vals[i]);
+            return obj;
+          });
+        }
+        
+        if (!data.length) throw new Error('No records found in results file.');
+        state.analysisData = data;
+        el.innerHTML = `<div>Loaded ${data.length} records</div>`;
+        
+        // Populate Column Selects
+        const cols = Object.keys(data[0] || {});
+        if (!cols.length) throw new Error('Results have no columns to map.');
+        const populate = (id) => {
+          const s = document.getElementById(id); s.innerHTML = '';
+          cols.forEach(c => {
+             const o = document.createElement('option');
+             o.value = c; o.text = c;
+             s.appendChild(o);
+          });
+        };
+        populate('colMap'); populate('colRef');
+        document.getElementById('colMapping').style.display = 'block';
+      } catch (err) {
+        state.analysisData = null;
+        document.getElementById('colMapping').style.display = 'none';
+        alert('Could not read results file: ' + err.message);
       }
-      
-      state.analysisData = data;
-      el.innerHTML = `<div>Loaded ${data.length} records</div>`;
-      
-      // Populate Column Selects
-      const cols = Object.keys(data[0]);
-      const populate = (id) => {
-        const s = document.getElementById(id); s.innerHTML = '';
-        cols.forEach(c => {
-           const o = document.createElement('option');
-           o.value = c; o.text = c;
-           s.appendChild(o);
-        });
-      };
-      populate('colMap'); populate('colRef');
-      document.getElementById('colMapping').style.display = 'block';
     });
 
     document.getElementById('calcBtn').addEventListener('click', () => {
+      if (!state.analysisData || !state.analysisData.length) { alert('Please load labeled results first.'); return; }
       const mapCol = document.getElementById('colMap').value;
       const refCol = document.getElementById('colRef').value;
       const data = state.analysisData;
+      if (!mapCol || !refCol) { alert('Select both map and reference columns.'); return; }
 
       // 1. Build Confusion Matrix
       const classes = [...new Set([...data.map(d=>d[mapCol]), ...data.map(d=>d[refCol])])].sort();
@@ -943,6 +999,7 @@
         total++;
         if (m === r) correct++;
       });
+      if (!total) { alert('No labeled records to analyze.'); return; }
 
       // 2. Render Matrix
       const table = document.getElementById('matrixTable');
@@ -1009,8 +1066,42 @@
        a.click(); URL.revokeObjectURL(url);
     };
 
+    const geometryToLonLat = (feature) => {
+      if (!feature?.geometry) return [null, null];
+      if (feature.geometry.type === 'Point') return feature.geometry.coordinates;
+      const center = turf.centerOfMass(feature);
+      return center?.geometry?.coordinates || [null, null];
+    };
+
+    const toCSV = (fc) => {
+      if (!fc?.features?.length) return '';
+      const propKeys = new Set();
+      fc.features.forEach(f => Object.keys(f.properties || {}).forEach(k => propKeys.add(k)));
+      const headers = ['lon', 'lat', ...propKeys];
+      const rows = fc.features.map(f => {
+        const [lon, lat] = geometryToLonLat(f);
+        const props = f.properties || {};
+        return headers.map(h => {
+          if (h === 'lon') return lon ?? '';
+          if (h === 'lat') return lat ?? '';
+          const val = props[h];
+          if (val === undefined || val === null) return '';
+          return typeof val === 'number' ? val : `"${String(val).replace(/"/g, '""')}"`;
+        }).join(',');
+      });
+      return [headers.join(','), ...rows].join('\n');
+    };
+
     document.getElementById('dlGeoBtn').addEventListener('click', () => {
+      if (!state.sample || !state.sample.features?.length) { alert('Generate a sample first.'); return; }
       download(JSON.stringify(state.sample), 'sample.geojson', 'application/json');
+    });
+
+    document.getElementById('dlCsvBtn').addEventListener('click', () => {
+      if (!state.sample || !state.sample.features?.length) { alert('Generate a sample first.'); return; }
+      const csv = toCSV(state.sample);
+      if (!csv) { alert('No sample available to export.'); return; }
+      download(csv, 'sample.csv', 'text/csv');
     });
 
     document.getElementById('dlProtoBtn').addEventListener('click', () => {
