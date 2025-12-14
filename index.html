@@ -870,6 +870,19 @@
       return null;
     };
 
+    // Robust point-in-AOI helper that supports multi-feature collections
+    const pointInAoi = (pt) => {
+      if (!state.aoi?.features?.length) return false;
+      return state.aoi.features.some(feature => {
+        const geomType = feature?.geometry?.type;
+        if (!geomType) return false;
+        if (geomType === 'Polygon' || geomType === 'MultiPolygon') {
+          return turf.booleanPointInPolygon(pt, feature);
+        }
+        return false;
+      });
+    };
+
     // Seeded RNG (Mulberry32)
     const seedRNG = (str) => {
       const s = (str ?? 'seed').toString();
@@ -1231,7 +1244,7 @@
                 y = bbox[1] + (bbox[3] - bbox[1]) * rng();
               }
               const pt = turf.point([x, y]);
-              if (turf.booleanPointInPolygon(pt, state.aoi)) {
+              if (pointInAoi(pt)) {
                 points.push(pt);
               }
             }
@@ -1247,7 +1260,7 @@
               const x = bbox[0] + (bbox[2] - bbox[0]) * rng();
               const y = bbox[1] + (bbox[3] - bbox[1]) * rng();
               const pt = turf.point([x, y]);
-              if (turf.booleanPointInPolygon(pt, state.aoi)) {
+              if (pointInAoi(pt)) {
                 // Create square
                 const midLat = (bbox[1] + bbox[3]) / 2;
                 const degX = side / (111320 * Math.cos(midLat * Math.PI / 180));
@@ -1262,7 +1275,7 @@
             for (let x = bbox[0]; x <= bbox[2]; x += cell) {
               for (let y = bbox[1]; y <= bbox[3]; y += cell) {
                 const pt = turf.point([x, y]);
-                if (turf.booleanPointInPolygon(pt, state.aoi)) points.push(pt);
+                if (pointInAoi(pt)) points.push(pt);
               }
             }
           }
@@ -1275,7 +1288,7 @@
               const xStart = bbox[0] + (row % 2 ? cell / 2 : 0);
               for (let x = xStart; x <= bbox[2]; x += cell) {
                 const pt = turf.point([x, y]);
-                if (turf.booleanPointInPolygon(pt, state.aoi)) points.push(pt);
+                if (pointInAoi(pt)) points.push(pt);
               }
               row++;
             }
@@ -1291,7 +1304,7 @@
               const x = bbox[0] + (bbox[2] - bbox[0]) * rng();
               const y = bbox[1] + (bbox[3] - bbox[1]) * rng();
               const pt = turf.point([x, y]);
-              if (turf.booleanPointInPolygon(pt, state.aoi)) centers.push([x, y]);
+              if (pointInAoi(pt)) centers.push([x, y]);
             }
             const ptsPerCluster = Math.ceil(config.n / centers.length);
             centers.forEach((c, cIdx) => {
@@ -1302,7 +1315,8 @@
                 const theta = rng() * 2 * Math.PI;
                 const nx = c[0] + (r * Math.cos(theta)) / mpdLon;
                 const ny = c[1] + (r * Math.sin(theta)) / 111320;
-                points.push(turf.point([nx, ny], { cluster: cIdx + 1 }));
+                const candidate = turf.point([nx, ny], { cluster: cIdx + 1 });
+                if (pointInAoi(candidate)) points.push(candidate);
               }
             });
           }
@@ -1351,7 +1365,7 @@
               const x = bbox[0] + (bbox[2] - bbox[0]) * rng();
               const y = bbox[1] + (bbox[3] - bbox[1]) * rng();
               const pt = turf.point([x, y]);
-              if (turf.booleanPointInPolygon(pt, state.aoi)) points.push(pt);
+              if (pointInAoi(pt)) points.push(pt);
             }
           }
 
