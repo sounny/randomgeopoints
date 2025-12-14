@@ -947,6 +947,10 @@
 
     // Calculate allocation per stratum (Cochran 1977)
     const calculateAllocation = (strataInfo, totalN, mode = 'proportional') => {
+      // Guard against undefined or empty strata
+      if (!strataInfo || !Array.isArray(strataInfo) || strataInfo.length === 0) {
+        return [];
+      }
       if (mode === 'equal') {
         const nPer = Math.floor(totalN / strataInfo.length);
         let remainder = totalN - nPer * strataInfo.length;
@@ -1311,6 +1315,10 @@
             const mode = config.method === 'stratified-equal' ? 'equal' : 'proportional';
             const strataInfo = state.strataInfo || analyzeStrata(state.strata, fieldName);
             const allocated = calculateAllocation(strataInfo, config.n, mode);
+
+            if (!allocated || allocated.length === 0) {
+              throw new Error('Could not allocate samples to strata. Check your strata file.');
+            }
 
             allocated.forEach(stratum => {
               const stratumBbox = turf.bbox(turf.featureCollection(stratum.features));
