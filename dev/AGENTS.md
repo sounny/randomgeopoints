@@ -24,3 +24,4 @@ This file acts as a shared memory and change log for the **Random Geo Points** p
 - 2025-12-12: Added spatially balanced sampling, random plot (area) sampling, design metadata/weights, and refreshed development plan and README.
 - 2025-12-12: Hardened AOI/strata loading (FeatureCollection normalization) and seed handling to prevent undefined length errors; removed non-ASCII UI glyphs.
 - 2025-12-14: Created `FULL_DEVELOPMENT_PLAN.md` detailing the v2 roadmap, architecture, and feature prioritization. Defined scope for Stratified Sampling logic, Olofsson Analysis Engine, and Protocol Builder.
+- 2025-12-15: Fixed AOI point-in-polygon checks to support FeatureCollections and keep cluster samples inside the AOI.
