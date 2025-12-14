@@ -211,6 +211,77 @@
       line-height: 1.4;
     }
 
+    /* Info Tooltips */
+    .info-tip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1px solid var(--text-muted);
+      color: var(--text-muted);
+      font-size: 0.6rem;
+      font-weight: 700;
+      cursor: help;
+      position: relative;
+      margin-left: 0.35rem;
+    }
+
+    .info-tip:hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: 120%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-alt);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.65rem;
+      font-size: 0.7rem;
+      font-weight: 400;
+      white-space: normal;
+      width: 200px;
+      line-height: 1.4;
+      z-index: 100;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Strata Legend */
+    .strata-legend {
+      margin-top: 0.5rem;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    .strata-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.25rem 0;
+      font-size: 0.75rem;
+    }
+
+    .strata-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .strata-label {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .strata-count {
+      color: var(--text-muted);
+      font-size: 0.7rem;
+    }
+
     input,
     select,
     textarea {
@@ -472,7 +543,9 @@
 
         <!-- Sampling Method -->
         <div class="section">
-          <h2>Sampling Method</h2>
+          <h2>Sampling Method<span class="info-tip"
+              data-tip="Probability-based designs ensure every location has a known, non-zero chance of selection (Olofsson 2014).">?</span>
+          </h2>
           <select id="method">
             <optgroup label="Probabilistic (Unbiased)">
               <option value="uniform-bbox">Simple Random (BBox)</option>
@@ -494,7 +567,9 @@
 
         <!-- AOI -->
         <div class="section">
-          <h2>Sampling Frame (AOI)</h2>
+          <h2>Sampling Frame (AOI)<span class="info-tip"
+              data-tip="The Area of Interest defines the population boundary. Points outside the AOI have zero probability of selection.">?</span>
+          </h2>
           <div class="drop-zone" id="aoiDrop">
             <div>Drop AOI GeoJSON</div>
             <input type="file" id="aoiInput" accept=".json,.geojson" hidden>
@@ -508,7 +583,9 @@
 
         <!-- Strata -->
         <div class="section" id="strataSection">
-          <h2>Strata (Optional)</h2>
+          <h2>Strata (Optional)<span class="info-tip"
+              data-tip="Stratification improves precision by ensuring all land cover classes are sampled. Stratified designs can reduce variance by ~50% (Cochran 1977).">?</span>
+          </h2>
           <div class="drop-zone" id="strataDrop">
             <div>Drop Strata GeoJSON</div>
             <input type="file" id="strataInput" accept=".json,.geojson" hidden>
@@ -516,12 +593,16 @@
           <div id="strataControls" style="display:none; margin-top:0.5rem">
             <label>Strata Field</label>
             <select id="strataField"></select>
+            <div id="strataLegend" class="strata-legend"></div>
+            <div id="strataAllocation" style="margin-top:0.5rem"></div>
           </div>
         </div>
 
         <!-- Parameters -->
         <div class="section">
-          <h2>Sample Size & Config</h2>
+          <h2>Sample Size & Config<span class="info-tip"
+              data-tip="n = (Z² × p × q) / E² where Z=1.96 (95% CI), p=expected accuracy, E=margin of error (Cochran 1977).">?</span>
+          </h2>
           <div class="grid2">
             <div>
               <label>Target Size (n)</label>
@@ -550,9 +631,31 @@
             <input type="number" id="plotSide" value="30">
           </div>
 
+          <!-- Sample Size Calculator (Cochran 1977) -->
+          <details style="margin-top:0.75rem">
+            <summary>📊 Sample Size Calculator</summary>
+            <div class="inner">
+              <p class="help" style="margin-bottom:0.5rem">Cochran's formula: n = Z²pq / E²</p>
+              <div class="grid2">
+                <div>
+                  <label>Expected Accuracy (%)</label>
+                  <input type="number" id="calcP" value="85" min="50" max="99">
+                </div>
+                <div>
+                  <label>Margin of Error (%)</label>
+                  <input type="number" id="calcE" value="5" min="1" max="20">
+                </div>
+              </div>
+              <button class="btn outline" id="calcNBtn" style="margin-top:0.5rem;width:100%">Calculate → Set n</button>
+              <div id="calcResult" class="help" style="margin-top:0.35rem;text-align:center"></div>
+            </div>
+          </details>
+
           <!-- Power Analysis Visualizer -->
           <div class="card" style="margin-top:0.5rem">
-            <div class="stats-label">Power Analysis (95% CI)</div>
+            <div class="stats-label">Power Analysis (95% CI)<span class="info-tip"
+                data-tip="Shows margin of error at different sample sizes assuming worst-case p=0.5 (maximum variance).">?</span>
+            </div>
             <div class="chart-container" id="powerChart">
               <!-- Bars injected by JS -->
             </div>
@@ -788,6 +891,75 @@
       return result;
     };
 
+    // Strata color palette (categorical, colorblind-friendly)
+    const STRATA_COLORS = [
+      '#2563eb', '#dc2626', '#16a34a', '#ca8a04', '#9333ea',
+      '#0891b2', '#be185d', '#65a30d', '#ea580c', '#6366f1'
+    ];
+    const getStrataColor = (idx) => STRATA_COLORS[idx % STRATA_COLORS.length];
+
+    // Nearest Neighbor Index calculation (Clark & Evans 1954)
+    const calculateNNI = (points, areaSqM) => {
+      if (!points || points.length < 10) return { nni: null, pattern: 'N/A' };
+      const coords = points.map(p => p.geometry.coordinates);
+      let sumNN = 0;
+      // Sample up to 100 points for performance
+      const sample = coords.length > 100 ? coords.filter((_, i) => i % Math.ceil(coords.length / 100) === 0) : coords;
+      sample.forEach((c1, i) => {
+        let minDist = Infinity;
+        coords.forEach((c2, j) => {
+          if (i !== j) {
+            const d = turf.distance(turf.point(c1), turf.point(c2), { units: 'meters' });
+            if (d < minDist) minDist = d;
+          }
+        });
+        sumNN += minDist;
+      });
+      const obsAvg = sumNN / sample.length;
+      const density = points.length / areaSqM;
+      const expAvg = 0.5 / Math.sqrt(density);
+      const nni = obsAvg / expAvg;
+      let pattern = 'Random';
+      if (nni < 0.8) pattern = 'Clustered';
+      else if (nni > 1.2) pattern = 'Dispersed';
+      return { nni: nni.toFixed(2), pattern };
+    };
+
+    // Analyze strata: get unique values, areas, and proportions
+    const analyzeStrata = (fc, fieldName) => {
+      if (!fc || !fc.features || !fieldName) return [];
+      const strataMap = {};
+      fc.features.forEach(f => {
+        const val = f.properties?.[fieldName] ?? 'Unknown';
+        if (!strataMap[val]) strataMap[val] = { name: val, features: [], areaSqM: 0 };
+        strataMap[val].features.push(f);
+        strataMap[val].areaSqM += turf.area(f);
+      });
+      const totalArea = Object.values(strataMap).reduce((s, v) => s + v.areaSqM, 0);
+      return Object.values(strataMap).map((v, i) => ({
+        ...v,
+        color: getStrataColor(i),
+        proportion: totalArea > 0 ? v.areaSqM / totalArea : 0
+      }));
+    };
+
+    // Calculate allocation per stratum (Cochran 1977)
+    const calculateAllocation = (strataInfo, totalN, mode = 'proportional') => {
+      if (mode === 'equal') {
+        const nPer = Math.floor(totalN / strataInfo.length);
+        let remainder = totalN - nPer * strataInfo.length;
+        return strataInfo.map((s, i) => ({ ...s, n: nPer + (i < remainder ? 1 : 0) }));
+      }
+      // Proportional allocation: n_h = n * W_h
+      let allocated = strataInfo.map(s => ({ ...s, n: Math.floor(totalN * s.proportion) }));
+      let sum = allocated.reduce((a, b) => a + b.n, 0);
+      let diff = totalN - sum;
+      // Distribute remainder to largest strata
+      allocated.sort((a, b) => b.proportion - a.proportion);
+      for (let i = 0; i < diff; i++) allocated[i % allocated.length].n++;
+      return allocated;
+    };
+
     /* =========================================
        UI LOGIC
        ========================================= */
@@ -813,6 +985,22 @@
     });
     // Trigger initial state
     document.getElementById('method').dispatchEvent(new Event('change'));
+
+    // Sample Size Calculator (Cochran 1977)
+    document.getElementById('calcNBtn').addEventListener('click', () => {
+      const p = parseFloat(document.getElementById('calcP').value) / 100;
+      const e = parseFloat(document.getElementById('calcE').value) / 100;
+      if (p < 0.5 || p > 0.99 || e < 0.01 || e > 0.2) {
+        document.getElementById('calcResult').innerHTML = '<span style="color:var(--danger)">Invalid inputs</span>';
+        return;
+      }
+      const z = 1.96; // 95% CI
+      const q = 1 - p;
+      const n = Math.ceil((z * z * p * q) / (e * e));
+      document.getElementById('nPts').value = n;
+      document.getElementById('calcResult').innerHTML = `<strong>${n}</strong> samples needed for ±${(e * 100).toFixed(0)}% at ${(p * 100).toFixed(0)}% accuracy`;
+      updatePowerChart();
+    });
 
     // Power Analysis Chart (Simple Canvas-less implementation)
     function updatePowerChart() {
@@ -955,7 +1143,44 @@
         sel.appendChild(opt);
       });
       document.getElementById('strataControls').style.display = 'block';
+
+      // Build legend and update map styling
+      updateStrataLegend();
     });
+
+    // Strata field change handler
+    document.getElementById('strataField').addEventListener('change', updateStrataLegend);
+
+    function updateStrataLegend() {
+      const fieldName = document.getElementById('strataField').value;
+      if (!state.strata || !fieldName) return;
+
+      const strataInfo = analyzeStrata(state.strata, fieldName);
+      state.strataInfo = strataInfo;
+
+      // Build color map
+      const colorMap = {};
+      strataInfo.forEach(s => { colorMap[s.name] = s.color; });
+
+      // Update map layer styling
+      layers.strata.clearLayers();
+      layers.strata.options.style = (feature) => ({
+        color: colorMap[feature.properties?.[fieldName]] || '#888',
+        weight: 1.5,
+        fillOpacity: 0.25
+      });
+      layers.strata.addData(state.strata);
+
+      // Render legend
+      const legendEl = document.getElementById('strataLegend');
+      legendEl.innerHTML = strataInfo.map(s => `
+        <div class="strata-legend-item">
+          <div class="strata-swatch" style="background:${s.color}"></div>
+          <span class="strata-label">${s.name}</span>
+          <span class="strata-count">${(s.proportion * 100).toFixed(1)}%</span>
+        </div>
+      `).join('');
+    }
 
     /* =========================================
        GENERATION LOGIC (Condensed)
@@ -1074,7 +1299,40 @@
               }
             });
           }
-          // Fallback for stratified methods - simple random
+          // STRATIFIED SAMPLING (Proportional or Equal)
+          else if (config.method.startsWith('stratified')) {
+            const fieldName = document.getElementById('strataField').value;
+            if (!state.strata || !fieldName) {
+              throw new Error('Stratified sampling requires strata polygons. Please upload a strata file.');
+            }
+            const mode = config.method === 'stratified-equal' ? 'equal' : 'proportional';
+            const strataInfo = state.strataInfo || analyzeStrata(state.strata, fieldName);
+            const allocated = calculateAllocation(strataInfo, config.n, mode);
+
+            allocated.forEach(stratum => {
+              const stratumBbox = turf.bbox(turf.featureCollection(stratum.features));
+              let tries = 0;
+              let generated = 0;
+              while (generated < stratum.n && tries < stratum.n * 500) {
+                tries++;
+                const x = stratumBbox[0] + (stratumBbox[2] - stratumBbox[0]) * rng();
+                const y = stratumBbox[1] + (stratumBbox[3] - stratumBbox[1]) * rng();
+                const pt = turf.point([x, y]);
+                // Check if inside any polygon of this stratum
+                const inside = stratum.features.some(f => turf.booleanPointInPolygon(pt, f));
+                if (inside) {
+                  pt.properties = {
+                    stratum: stratum.name,
+                    stratum_area_km2: (stratum.areaSqM / 1e6).toFixed(2),
+                    stratum_weight: stratum.proportion.toFixed(4)
+                  };
+                  points.push(pt);
+                  generated++;
+                }
+              }
+            });
+          }
+          // Fallback - simple random
           else {
             let tries = 0;
             while (points.length < config.n && tries < config.n * 500) {
@@ -1088,34 +1346,51 @@
 
           // Update State
           state.sample = turf.featureCollection(points);
-          // Add Metadata
+
+          // Add Metadata with design weights (Olofsson 2014)
+          const totalArea = turf.area(state.aoi);
           state.sample.features.forEach((f, i) => {
-            f.properties = { id: i + 1, method: config.method, ...f.properties };
+            const baseWeight = 1 / points.length;
+            f.properties = {
+              id: i + 1,
+              method: config.method,
+              inclusion_prob: baseWeight.toFixed(6),
+              weight: (1 / baseWeight).toFixed(2),
+              ...f.properties
+            };
           });
+
+          // Add collection-level metadata
+          state.sample.metadata = {
+            generatedAt: new Date().toISOString(),
+            seed: config.seed,
+            method: config.method,
+            targetN: config.n,
+            actualN: points.length,
+            aoiAreaKm2: (totalArea / 1e6).toFixed(2)
+          };
 
           // Render
           layers.samples.clearLayers().addData(state.sample);
 
           // Update Stats
-          const areaSqKm = turf.area(state.aoi) / 1e6;
+          const areaSqKm = totalArea / 1e6;
           document.getElementById('resCount').innerText = points.length;
-          document.getElementById('resDensity').innerText = (points.length / areaSqKm).toFixed(2) + '/km^2';
+          document.getElementById('resDensity').innerText = (points.length / areaSqKm).toFixed(2) + '/km²';
 
-          // Spatial Health Check (NNI)
-          // Average Nearest Neighbor
-          if (points.length > 5 && points[0].geometry.type === 'Point') {
-            // Simplified NNI calculation
-            const density = points.length / (areaSqKm * 1e6);
-            const expMean = 0.5 / Math.sqrt(density);
-            // Calc obs mean distance... (expensive for large N, doing simple subset check)
-            // Placeholder for speed
-            document.getElementById('nniStat').innerText = "NNI: Calc...";
+          // Spatial Health Check - Real NNI Calculation (Clark & Evans 1954)
+          if (points.length >= 10 && points[0].geometry.type === 'Point') {
+            document.getElementById('nniStat').innerText = "NNI: calculating...";
             setTimeout(() => {
-              // Real calc could go here
-              document.getElementById('nniStat').innerText = "NNI: ~1.0 (Random)";
-            }, 500);
+              const nniResult = calculateNNI(points, totalArea);
+              if (nniResult.nni) {
+                document.getElementById('nniStat').innerText = `NNI: ${nniResult.nni} (${nniResult.pattern})`;
+              } else {
+                document.getElementById('nniStat').innerText = "NNI: N/A";
+              }
+            }, 50);
           } else {
-            document.getElementById('nniStat').innerText = "N/A (Plots)";
+            document.getElementById('nniStat').innerText = points[0]?.geometry?.type === 'Polygon' ? "N/A (Plots)" : "N/A (n<10)";
           }
 
           document.getElementById('designResults').style.display = 'block';
