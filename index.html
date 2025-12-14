@@ -4,25 +4,49 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Random GeoPoints v2 - Validation Workbench</title>
+  <title>Random GeoPoints — Geospatial Sampling Workbench</title>
   <meta name="description"
     content="Advanced geospatial sampling and accuracy assessment tool. Generate probability-based samples, define protocols, and calculate Olofsson accuracy metrics.">
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <style>
+    /* ========== Theme Variables ========== */
     :root {
+      /* Light Theme (default) */
+      --bg: #f8fafc;
+      --bg-alt: #ffffff;
+      --panel: rgba(255, 255, 255, 0.95);
+      --border: rgba(148, 163, 184, 0.3);
+      --primary: #0d9488;
+      --primary-hover: #0f766e;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --success: #059669;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --accent: #7c3aed;
+      --point-color: #7c3aed;
+      --header-bg: #0f172a;
+      --header-text: #f8fafc;
+    }
+
+    [data-theme="dark"] {
       --bg: #0f172a;
+      --bg-alt: #1e293b;
       --panel: rgba(30, 41, 59, 0.95);
-      --border: rgba(51, 65, 85, 0.5);
-      --primary: #3b82f6;
-      --primary-hover: #2563eb;
+      --border: rgba(71, 85, 105, 0.5);
+      --primary: #14b8a6;
+      --primary-hover: #2dd4bf;
       --text: #f1f5f9;
       --text-muted: #94a3b8;
       --success: #10b981;
       --warning: #f59e0b;
       --danger: #ef4444;
-      --accent: #d946ef; /* Magenta for points */
+      --accent: #a78bfa;
+      --point-color: #a78bfa;
+      --header-bg: #020617;
+      --header-text: #f8fafc;
     }
 
     * {
@@ -42,13 +66,14 @@
       display: grid;
       grid-template-rows: auto 1fr;
       overflow: hidden;
+      transition: background 0.3s, color 0.3s;
     }
 
     /* Header */
     header {
       padding: 0.5rem 1.25rem;
       border-bottom: 1px solid var(--border);
-      background: #020617;
+      background: var(--header-bg);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -59,16 +84,31 @@
       margin: 0;
       font-size: 1rem;
       font-weight: 700;
-      color: var(--text);
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
+      color: var(--header-text);
     }
 
-    header h1 span {
-      background: linear-gradient(90deg, #3b82f6, #d946ef);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .theme-toggle {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      padding: 0.4rem 0.75rem;
+      color: var(--header-text);
+      cursor: pointer;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: background 0.2s;
+    }
+
+    .theme-toggle:hover {
+      background: rgba(255, 255, 255, 0.15);
     }
 
     /* Main Layout */
@@ -171,7 +211,9 @@
       line-height: 1.4;
     }
 
-    input, select, textarea {
+    input,
+    select,
+    textarea {
       width: 100%;
       padding: 0.5rem 0.6rem;
       background: rgba(15, 23, 42, 0.6);
@@ -183,7 +225,9 @@
       transition: border 0.2s;
     }
 
-    input:focus, select:focus, textarea:focus {
+    input:focus,
+    select:focus,
+    textarea:focus {
       outline: none;
       border-color: var(--primary);
     }
@@ -212,10 +256,26 @@
       cursor: not-allowed;
     }
 
-    .btn.primary { background: var(--primary); color: white; }
-    .btn.accent { background: var(--accent); color: white; }
-    .btn.good { background: var(--success); color: white; }
-    .btn.outline { background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
+    .btn.primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn.accent {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn.good {
+      background: var(--success);
+      color: white;
+    }
+
+    .btn.outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
 
     .grid2 {
       display: grid;
@@ -251,8 +311,44 @@
       padding: 0.75rem;
     }
 
-    .stats-val { font-size: 1.25rem; font-weight: 700; color: var(--text); }
-    .stats-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; }
+    .stats-val {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .stats-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    /* Details/Summary */
+    details {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    details summary {
+      padding: 0.6rem;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      list-style: none;
+    }
+
+    details summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details[open] summary {
+      border-bottom: 1px solid var(--border);
+    }
+
+    details .inner {
+      padding: 0.75rem;
+    }
 
     /* Tables for Analysis */
     .data-table {
@@ -260,32 +356,61 @@
       border-collapse: collapse;
       font-size: 0.8rem;
     }
-    .data-table th, .data-table td {
+
+    .data-table th,
+    .data-table td {
       padding: 0.4rem;
       border: 1px solid var(--border);
       text-align: center;
     }
-    .data-table th { background: rgba(255, 255, 255, 0.05); }
-    .data-table .row-header { text-align: left; font-weight: 600; background: rgba(255, 255, 255, 0.02); }
+
+    .data-table th {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .data-table .row-header {
+      text-align: left;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.02);
+    }
 
     /* Map */
-    #map { height: 100%; width: 100%; z-index: 1; }
+    #map {
+      height: 100%;
+      width: 100%;
+      z-index: 1;
+    }
 
     /* Loading Overlay */
     .loading-overlay {
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       background: rgba(15, 23, 42, 0.9);
-      display: none; align-items: center; justify-content: center;
-      z-index: 9999; flex-direction: column; gap: 1rem;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      flex-direction: column;
+      gap: 1rem;
     }
+
     .spinner {
-      width: 40px; height: 40px;
+      width: 40px;
+      height: 40px;
       border: 3px solid var(--border);
       border-top-color: var(--accent);
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
 
     /* Charts */
     .chart-container {
@@ -296,6 +421,7 @@
       border-left: 1px solid var(--border);
       margin-top: 10px;
     }
+
     .chart-bar {
       position: absolute;
       bottom: 0;
@@ -303,6 +429,7 @@
       opacity: 0.7;
       transition: height 0.3s;
     }
+
     .chart-label {
       position: absolute;
       bottom: -15px;
@@ -310,7 +437,6 @@
       color: var(--text-muted);
       transform: translateX(-50%);
     }
-
   </style>
 </head>
 
@@ -321,8 +447,15 @@
   </div>
 
   <header>
-    <h1>Random GeoPoints v2</h1>
-    <a href="https://github.com/sounny/randomgeopoints-1" target="_blank" style="color:var(--text-muted); text-decoration:none; font-size:0.8rem">Docs</a>
+    <h1>Random GeoPoints</h1>
+    <div class="header-actions">
+      <button class="theme-toggle" id="themeToggle">
+        <span id="themeIcon">🌙</span>
+        <span id="themeLabel">Dark</span>
+      </button>
+      <a href="https://github.com/sounny/randomgeopoints" target="_blank"
+        style="color:var(--header-text); opacity:0.7; text-decoration:none; font-size:0.8rem">Docs</a>
+    </div>
   </header>
 
   <div id="app">
@@ -336,7 +469,7 @@
 
       <!-- Tab 1: Design -->
       <div id="design" class="tab-content active">
-        
+
         <!-- Sampling Method -->
         <div class="section">
           <h2>Sampling Method</h2>
@@ -461,7 +594,7 @@
         <div class="section">
           <h2>Response Design Protocol</h2>
           <p class="help">Define rules for labeling to ensure consistency (Stehman & Czaplewski 1998).</p>
-          
+
           <label>Minimum Mapping Unit (MMU)</label>
           <select id="protoMmu">
             <option>Single Pixel (Center)</option>
@@ -502,7 +635,7 @@
         <div class="section">
           <h2>Analysis Engine (Olofsson et al. 2014)</h2>
           <p class="help">Calculate rigorous accuracy metrics and area estimates.</p>
-          
+
           <div class="drop-zone" id="resDrop">
             <div>Drop Labeled Results (CSV/GeoJSON)</div>
             <input type="file" id="resInput" accept=".csv,.json,.geojson" hidden>
@@ -519,7 +652,7 @@
 
         <div id="analysisOut" style="display:none" class="section">
           <h2>Accuracy Results</h2>
-          
+
           <div class="card">
             <div class="grid2">
               <div>
@@ -544,7 +677,13 @@
             <summary class="btn outline">Class Metrics (UA/PA)</summary>
             <div style="overflow-x:auto; margin-top:0.5rem">
               <table class="data-table" id="classTable">
-                <thead><tr><th>Class</th><th>UA (User)</th><th>PA (Prod)</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Class</th>
+                    <th>UA (User)</th>
+                    <th>PA (Prod)</th>
+                  </tr>
+                </thead>
                 <tbody></tbody>
               </table>
             </div>
@@ -562,8 +701,43 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
-  
+
   <script>
+    /* =========================================
+       THEME TOGGLE
+       ========================================= */
+    const initTheme = () => {
+      const saved = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const theme = saved || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+      updateThemeUI(theme);
+    };
+
+    const updateThemeUI = (theme) => {
+      const icon = document.getElementById('themeIcon');
+      const label = document.getElementById('themeLabel');
+      if (theme === 'dark') {
+        icon.textContent = '☀️';
+        label.textContent = 'Light';
+      } else {
+        icon.textContent = '🌙';
+        label.textContent = 'Dark';
+      }
+    };
+
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      updateThemeUI(next);
+      // Switch map tiles
+      updateMapTiles(next);
+    });
+
+    initTheme();
+
     /* =========================================
        CORE UTILITIES & STATE
        ========================================= */
@@ -606,7 +780,7 @@
         return ((t ^ t >>> 14) >>> 0) / 4294967296;
       };
     };
-    
+
     // Simple Halton Sequence
     const halton = (idx, base) => {
       let result = 0, f = 1 / base, i = idx;
@@ -617,7 +791,7 @@
     /* =========================================
        UI LOGIC
        ========================================= */
-    
+
     // Tab Switching
     document.querySelectorAll('.tab').forEach(t => {
       t.addEventListener('click', () => {
@@ -633,32 +807,33 @@
     // Method Options Visibility
     document.getElementById('method').addEventListener('change', (e) => {
       const m = e.target.value;
-      const setDisplay = (id, show) => document.getElementById(id).style.display = show ? 'block' : 'none';
-      setDisplay('opt-grid', ['systematic', 'hex', 'stratified'].includes(m));
-      setDisplay('opt-cluster', m === 'cluster');
-      setDisplay('opt-plots', m === 'plots');
+      document.getElementById('opt-grid').style.display = ['systematic', 'hex'].includes(m) ? 'block' : 'none';
+      document.getElementById('opt-cluster').style.display = m === 'cluster' ? 'block' : 'none';
+      document.getElementById('opt-plots').style.display = m === 'plots' ? 'block' : 'none';
     });
+    // Trigger initial state
+    document.getElementById('method').dispatchEvent(new Event('change'));
 
     // Power Analysis Chart (Simple Canvas-less implementation)
     function updatePowerChart() {
       const n = parseInt(document.getElementById('nPts').value) || 100;
       const container = document.getElementById('powerChart');
       container.innerHTML = '';
-      
+
       const steps = [0.5, 1, 2, 4]; // multipliers of n
       const baseMOE = (1.96 * Math.sqrt(0.25 / n)) * 100; // Worst case p=0.5
-      
+
       steps.forEach((mult, i) => {
         const thisN = Math.round(n * mult);
         const moe = (1.96 * Math.sqrt(0.25 / thisN)) * 100;
         const heightPct = (moe / (1.96 * Math.sqrt(0.25 / 10) * 100)) * 100 * 3; // Scaling factor for vis
-        
+
         const bar = document.createElement('div');
         bar.className = 'chart-bar';
         bar.style.height = Math.min(heightPct, 90) + '%';
         bar.style.left = (15 + i * 25) + '%';
         bar.style.width = '15%';
-        
+
         const label = document.createElement('div');
         label.className = 'chart-label';
         label.innerHTML = `n=${thisN}<br>+/-${moe.toFixed(1)}%`;
@@ -673,22 +848,40 @@
        MAP & DRAWING
        ========================================= */
     const map = L.map('map').setView([0, 0], 2);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO'
-    }).addTo(map);
+
+    // Tile layers for light/dark themes
+    const tileLayers = {
+      light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO'
+      }),
+      dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO'
+      })
+    };
+
+    // Set initial tile layer based on theme
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    tileLayers[currentTheme].addTo(map);
+
+    const updateMapTiles = (theme) => {
+      map.eachLayer(layer => {
+        if (layer instanceof L.TileLayer) map.removeLayer(layer);
+      });
+      tileLayers[theme].addTo(map);
+    };
 
     const layers = {
-      aoi: L.geoJSON(null, { style: { color: '#3b82f6', weight: 2, fillOpacity: 0.1 } }).addTo(map),
-      strata: L.geoJSON(null, { style: { color: '#f59e0b', weight: 1, fillOpacity: 0.2 } }).addTo(map),
+      aoi: L.geoJSON(null, { style: { color: '#0d9488', weight: 2, fillOpacity: 0.1 } }).addTo(map),
+      strata: L.geoJSON(null, { style: { color: '#d97706', weight: 1, fillOpacity: 0.15 } }).addTo(map),
       samples: L.geoJSON(null, {
-        pointToLayer: (f, ll) => L.circleMarker(ll, { 
-          radius: 5, 
-          color: '#ffffff', 
-          weight: 1, 
-          fillColor: '#d946ef', // Magenta
-          fillOpacity: 0.9 
+        pointToLayer: (f, ll) => L.circleMarker(ll, {
+          radius: 5,
+          color: '#ffffff',
+          weight: 1,
+          fillColor: '#7c3aed',
+          fillOpacity: 0.9
         }),
-        style: { color: '#d946ef', weight: 2, fillOpacity: 0.1 } // For plots
+        style: { color: '#7c3aed', weight: 2, fillOpacity: 0.15 } // For plots
       }).addTo(map)
     };
 
@@ -750,7 +943,7 @@
       state.strata = fc;
       layers.strata.clearLayers().addData(state.strata);
       el.innerHTML = `<div>Loaded ${file.name}</div>`;
-      
+
       // Populate fields
       if (!state.strata.features.length) { alert('Strata file has no features'); return; }
       const props = Object.keys(state.strata.features[0].properties || {});
@@ -771,7 +964,7 @@
       const aoiFC = toFeatureCollection(state.aoi);
       if (!aoiFC) return alert('Please define an AOI first (Polygon or FeatureCollection).');
       state.aoi = aoiFC;
-      
+
       const config = {
         n: parseInt(document.getElementById('nPts').value),
         seed: document.getElementById('seed').value,
@@ -786,96 +979,148 @@
           const rng = seedRNG(config.seed);
           const bbox = turf.bbox(state.aoi);
           const points = [];
-          
+
           // Core Generation Switch
           // Note: In a real "V2", these would be modular functions. Inline for brevity here.
-          
+
           if (config.method.includes('uniform') || config.method === 'balanced') {
             // Simple / Balanced
             let tries = 0;
             let idx = 0;
-            while(points.length < config.n && tries < config.n * 500) {
+            while (points.length < config.n && tries < config.n * 500) {
               tries++;
               let x, y;
               if (config.method === 'balanced') {
                 idx++;
-                x = bbox[0] + (bbox[2]-bbox[0]) * halton(idx, 2);
-                y = bbox[1] + (bbox[3]-bbox[1]) * halton(idx, 3);
+                x = bbox[0] + (bbox[2] - bbox[0]) * halton(idx, 2);
+                y = bbox[1] + (bbox[3] - bbox[1]) * halton(idx, 3);
               } else {
-                x = bbox[0] + (bbox[2]-bbox[0]) * rng();
-                y = bbox[1] + (bbox[3]-bbox[1]) * rng();
+                x = bbox[0] + (bbox[2] - bbox[0]) * rng();
+                y = bbox[1] + (bbox[3] - bbox[1]) * rng();
               }
               const pt = turf.point([x, y]);
               if (turf.booleanPointInPolygon(pt, state.aoi)) {
-                 points.push(pt);
+                points.push(pt);
               }
             }
-          } 
-          else if (config.method === 'plots') {
-             // Plot sampling logic
-             const side = parseFloat(document.getElementById('plotSide').value);
-             // ... logic similar to points but buffering ...
-             // Simplified placeholder:
-             let tries = 0;
-             while(points.length < config.n && tries < config.n * 500) {
-               tries++;
-               const x = bbox[0] + (bbox[2]-bbox[0]) * rng();
-               const y = bbox[1] + (bbox[3]-bbox[1]) * rng();
-               const pt = turf.point([x,y]);
-               if (turf.booleanPointInPolygon(pt, state.aoi)) {
-                 // Create square
-                 const midLat = (bbox[1]+bbox[3])/2;
-                 const degX = side / (111320 * Math.cos(midLat * Math.PI/180));
-                 const degY = side / 111320;
-                 points.push(turf.bboxPolygon([x-degX/2, y-degY/2, x+degX/2, y+degY/2]));
-               }
-             }
           }
-          // Fallback for others (stratified/grid) - retain V1 logic or simplified placeholder
+          else if (config.method === 'plots') {
+            // Plot sampling logic
+            const side = parseFloat(document.getElementById('plotSide').value);
+            // ... logic similar to points but buffering ...
+            // Simplified placeholder:
+            let tries = 0;
+            while (points.length < config.n && tries < config.n * 500) {
+              tries++;
+              const x = bbox[0] + (bbox[2] - bbox[0]) * rng();
+              const y = bbox[1] + (bbox[3] - bbox[1]) * rng();
+              const pt = turf.point([x, y]);
+              if (turf.booleanPointInPolygon(pt, state.aoi)) {
+                // Create square
+                const midLat = (bbox[1] + bbox[3]) / 2;
+                const degX = side / (111320 * Math.cos(midLat * Math.PI / 180));
+                const degY = side / 111320;
+                points.push(turf.bboxPolygon([x - degX / 2, y - degY / 2, x + degX / 2, y + degY / 2]));
+              }
+            }
+          }
+          // Systematic Grid
+          else if (config.method === 'systematic') {
+            const cell = parseFloat(document.getElementById('cellSize').value) || 0.02;
+            for (let x = bbox[0]; x <= bbox[2]; x += cell) {
+              for (let y = bbox[1]; y <= bbox[3]; y += cell) {
+                const pt = turf.point([x, y]);
+                if (turf.booleanPointInPolygon(pt, state.aoi)) points.push(pt);
+              }
+            }
+          }
+          // Hexagonal Lattice
+          else if (config.method === 'hex') {
+            const cell = parseFloat(document.getElementById('cellSize').value) || 0.02;
+            const dy = cell * Math.sqrt(3) / 2;
+            let row = 0;
+            for (let y = bbox[1]; y <= bbox[3]; y += dy) {
+              const xStart = bbox[0] + (row % 2 ? cell / 2 : 0);
+              for (let x = xStart; x <= bbox[2]; x += cell) {
+                const pt = turf.point([x, y]);
+                if (turf.booleanPointInPolygon(pt, state.aoi)) points.push(pt);
+              }
+              row++;
+            }
+          }
+          // Cluster Sampling
+          else if (config.method === 'cluster') {
+            const nClusters = parseInt(document.getElementById('nClusters').value) || 10;
+            const radius = parseFloat(document.getElementById('clustRad').value) || 1000;
+            const centers = [];
+            let tries = 0;
+            while (centers.length < nClusters && tries < nClusters * 100) {
+              tries++;
+              const x = bbox[0] + (bbox[2] - bbox[0]) * rng();
+              const y = bbox[1] + (bbox[3] - bbox[1]) * rng();
+              const pt = turf.point([x, y]);
+              if (turf.booleanPointInPolygon(pt, state.aoi)) centers.push([x, y]);
+            }
+            const ptsPerCluster = Math.ceil(config.n / centers.length);
+            centers.forEach((c, cIdx) => {
+              for (let i = 0; i < ptsPerCluster && points.length < config.n; i++) {
+                const midLat = (bbox[1] + bbox[3]) / 2;
+                const mpdLon = 111320 * Math.cos(midLat * Math.PI / 180);
+                const r = radius * Math.sqrt(rng());
+                const theta = rng() * 2 * Math.PI;
+                const nx = c[0] + (r * Math.cos(theta)) / mpdLon;
+                const ny = c[1] + (r * Math.sin(theta)) / 111320;
+                points.push(turf.point([nx, ny], { cluster: cIdx + 1 }));
+              }
+            });
+          }
+          // Fallback for stratified methods - simple random
           else {
-            // Simple fallback to random if specific logic not migrated yet
-            for(let i=0; i<config.n; i++) {
-               const x = bbox[0] + (bbox[2]-bbox[0]) * rng();
-               const y = bbox[1] + (bbox[3]-bbox[1]) * rng();
-               points.push(turf.point([x,y]));
+            let tries = 0;
+            while (points.length < config.n && tries < config.n * 500) {
+              tries++;
+              const x = bbox[0] + (bbox[2] - bbox[0]) * rng();
+              const y = bbox[1] + (bbox[3] - bbox[1]) * rng();
+              const pt = turf.point([x, y]);
+              if (turf.booleanPointInPolygon(pt, state.aoi)) points.push(pt);
             }
           }
 
           // Update State
           state.sample = turf.featureCollection(points);
           // Add Metadata
-          state.sample.features.forEach((f,i) => {
-            f.properties = { id: i+1, method: config.method, ...f.properties };
+          state.sample.features.forEach((f, i) => {
+            f.properties = { id: i + 1, method: config.method, ...f.properties };
           });
 
           // Render
           layers.samples.clearLayers().addData(state.sample);
-          
+
           // Update Stats
           const areaSqKm = turf.area(state.aoi) / 1e6;
           document.getElementById('resCount').innerText = points.length;
           document.getElementById('resDensity').innerText = (points.length / areaSqKm).toFixed(2) + '/km^2';
-          
+
           // Spatial Health Check (NNI)
           // Average Nearest Neighbor
           if (points.length > 5 && points[0].geometry.type === 'Point') {
-             // Simplified NNI calculation
-             const density = points.length / (areaSqKm * 1e6);
-             const expMean = 0.5 / Math.sqrt(density);
-             // Calc obs mean distance... (expensive for large N, doing simple subset check)
-             // Placeholder for speed
-             document.getElementById('nniStat').innerText = "NNI: Calc..."; 
-             setTimeout(() => {
-                // Real calc could go here
-                document.getElementById('nniStat').innerText = "NNI: ~1.0 (Random)"; 
-             }, 500);
+            // Simplified NNI calculation
+            const density = points.length / (areaSqKm * 1e6);
+            const expMean = 0.5 / Math.sqrt(density);
+            // Calc obs mean distance... (expensive for large N, doing simple subset check)
+            // Placeholder for speed
+            document.getElementById('nniStat').innerText = "NNI: Calc...";
+            setTimeout(() => {
+              // Real calc could go here
+              document.getElementById('nniStat').innerText = "NNI: ~1.0 (Random)";
+            }, 500);
           } else {
-             document.getElementById('nniStat').innerText = "N/A (Plots)";
+            document.getElementById('nniStat').innerText = "N/A (Plots)";
           }
 
           document.getElementById('designResults').style.display = 'block';
           document.getElementById('loadingOverlay').style.display = 'none';
-        } catch(e) {
+        } catch (e) {
           alert('Error: ' + e.message);
           document.getElementById('loadingOverlay').style.display = 'none';
         }
@@ -888,7 +1133,7 @@
     setupDrop('resDrop', 'resInput', async (file, el) => {
       const txt = await file.text();
       let data = [];
-      
+
       // Parse CSV or GeoJSON
       if (file.name.endsWith('json')) {
         const gj = JSON.parse(txt);
@@ -900,22 +1145,22 @@
         data = lines.slice(1).map(l => {
           const vals = l.split(',');
           let obj = {};
-          headers.forEach((h,i) => obj[h] = vals[i]);
+          headers.forEach((h, i) => obj[h] = vals[i]);
           return obj;
         });
       }
-      
+
       state.analysisData = data;
       el.innerHTML = `<div>Loaded ${data.length} records</div>`;
-      
+
       // Populate Column Selects
       const cols = Object.keys(data[0]);
       const populate = (id) => {
         const s = document.getElementById(id); s.innerHTML = '';
         cols.forEach(c => {
-           const o = document.createElement('option');
-           o.value = c; o.text = c;
-           s.appendChild(o);
+          const o = document.createElement('option');
+          o.value = c; o.text = c;
+          s.appendChild(o);
         });
       };
       populate('colMap'); populate('colRef');
@@ -928,13 +1173,13 @@
       const data = state.analysisData;
 
       // 1. Build Confusion Matrix
-      const classes = [...new Set([...data.map(d=>d[mapCol]), ...data.map(d=>d[refCol])])].sort();
-      const matrix = {}; 
+      const classes = [...new Set([...data.map(d => d[mapCol]), ...data.map(d => d[refCol])])].sort();
+      const matrix = {};
       classes.forEach(c => matrix[c] = {});
-      
+
       let total = 0;
       let correct = 0;
-      
+
       data.forEach(d => {
         const m = d[mapCol];
         const r = d[refCol];
@@ -949,7 +1194,7 @@
       let html = '<thead><tr><th>Map \ Ref</th>';
       classes.forEach(c => html += `<th>${c}</th>`);
       html += '<th>Total</th></tr></thead><tbody>';
-      
+
       classes.forEach(rowClass => {
         html += `<tr><td class="row-header">${rowClass}</td>`;
         let rowSum = 0;
@@ -966,33 +1211,33 @@
       // 3. Calculate Olofsson Metrics (Simplified SRS assumption if weights not provided)
       // Note: Full Olofsson requires mapped area weights. 
       // V2 Implementation: Calculates raw sample-based metrics (Simple Random assumption)
-      
+
       const oa = correct / total;
-      const se = Math.sqrt((oa * (1-oa)) / total); // Basic SE formula
-      
+      const se = Math.sqrt((oa * (1 - oa)) / total); // Basic SE formula
+
       document.getElementById('valOA').innerText = (oa * 100).toFixed(2) + '%';
       document.getElementById('valOASE').innerText = '+/-' + (se * 1.96 * 100).toFixed(2) + '%';
 
       // Per Class Metrics
       const classBody = document.querySelector('#classTable tbody');
       classBody.innerHTML = '';
-      
+
       classes.forEach(c => {
         // Row Sum (Mapped Total)
         let n_i_plus = 0;
         classes.forEach(k => n_i_plus += (matrix[c][k] || 0));
-        
+
         // Col Sum (Ref Total)
         let n_plus_j = 0;
         classes.forEach(k => n_plus_j += (matrix[k][c] || 0));
-        
+
         const correct_c = matrix[c][c] || 0;
-        
+
         const ua = n_i_plus > 0 ? correct_c / n_i_plus : 0;
         const pa = n_plus_j > 0 ? correct_c / n_plus_j : 0;
-        
+
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${c}</td><td>${(ua*100).toFixed(1)}%</td><td>${(pa*100).toFixed(1)}%</td>`;
+        tr.innerHTML = `<td>${c}</td><td>${(ua * 100).toFixed(1)}%</td><td>${(pa * 100).toFixed(1)}%</td>`;
         classBody.appendChild(tr);
       });
 
@@ -1003,14 +1248,38 @@
        EXPORTS
        ========================================= */
     const download = (content, name, mime) => {
-       const blob = new Blob([content], {type: mime});
-       const url = URL.createObjectURL(blob);
-       const a = document.createElement('a'); a.href = url; a.download = name;
-       a.click(); URL.revokeObjectURL(url);
+      const blob = new Blob([content], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = name;
+      a.click(); URL.revokeObjectURL(url);
     };
 
     document.getElementById('dlGeoBtn').addEventListener('click', () => {
-      download(JSON.stringify(state.sample), 'sample.geojson', 'application/json');
+      if (!state.sample) return alert('Generate a sample first');
+      const exportData = {
+        ...state.sample,
+        metadata: {
+          generated: new Date().toISOString(),
+          seed: document.getElementById('seed').value,
+          method: document.getElementById('method').value,
+          count: state.sample.features.length
+        }
+      };
+      download(JSON.stringify(exportData, null, 2), 'sample.geojson', 'application/geo+json');
+    });
+
+    document.getElementById('dlCsvBtn').addEventListener('click', () => {
+      if (!state.sample) return alert('Generate a sample first');
+      const rows = [['id', 'lon', 'lat', 'method']];
+      state.sample.features.forEach(f => {
+        if (f.geometry.type === 'Point') {
+          rows.push([f.properties.id, f.geometry.coordinates[0], f.geometry.coordinates[1], f.properties.method]);
+        } else {
+          const center = turf.centroid(f);
+          rows.push([f.properties.id, center.geometry.coordinates[0], center.geometry.coordinates[1], f.properties.method]);
+        }
+      });
+      download(rows.map(r => r.join(',')).join('\n'), 'sample.csv', 'text/csv');
     });
 
     document.getElementById('dlProtoBtn').addEventListener('click', () => {
@@ -1040,4 +1309,5 @@ Date: ${new Date().toISOString()}
 
   </script>
 </body>
+
 </html>

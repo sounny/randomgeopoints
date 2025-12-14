@@ -1,40 +1,77 @@
-# Development Plan – Next Iteration (Dec 2025)
+# Development Plan – Random GeoPoints v2
 
-Source: `references/random_point_area_sampling_dissertation.md` (random point and area sampling dissertation).
+**Last Updated**: December 2025
 
-## Guiding principles pulled from the dissertation
-- Match the sampling unit to the map meaning: support both point-based and area/plot-based validation units; avoid pixel-only validation when MMU is larger.
-- Keep probability-based selection visible: expose inclusion probabilities/weights and the sampling frame used for each method.
-- Use estimators/designs that align: avoid treating stratified or cluster designs as simple random; keep stratum metadata with samples.
-- Promote spatial spread: provide a spatially balanced design option for lower variance under spatial autocorrelation.
-- Document response design hooks: include metadata fields to record labeling rules and reference source notes for reproducibility.
+## Completed Features ✅
 
-## Near-term feature goals
-1) Area/plot sampling
-- Add a “random plots” mode that samples square plots (user-defined side length in meters) fully contained in the AOI.
-- Export plots as polygons with unit metadata (plot area, side length, unit type) and design weights.
+### Phase 1: Core Sampling
+- [x] Simple Random Sampling (BBox and Polygon)
+- [x] Spatially Balanced (Halton sequence)
+- [x] Systematic Grid (rectangular)
+- [x] Hexagonal Lattice
+- [x] Cluster Sampling (two-stage)
+- [x] Random Plots (square area units)
 
-2) Spatially balanced option
-- Implement a Halton/BAS-lite spatially balanced point sampler inside the AOI to reduce clumping versus pure SRS.
-- Surface when this method is chosen and how many attempts were required to fill the sample.
+### Phase 2: UI/UX
+- [x] Modern tabbed interface (Design → Protocol → Analyze)
+- [x] Drag-and-drop file upload
+- [x] Draw-on-map AOI definition
+- [x] Power analysis visualization
+- [x] Loading overlay with spinner
+- [x] Dark theme with glassmorphism
 
-3) Design weights and metadata
-- Attach `inclusionProb` and `weightAreaSqM` to all outputs; for stratified designs compute weights using stratum area and sample counts.
-- Add per-feature fields for stratum ID, cluster ID (where applicable), and unit type (point vs plot).
-- Add a UI “Design metadata” panel summarizing method, unit of analysis, weighting rule, and AOI/strata area totals.
+### Phase 3: Validation Tools
+- [x] Confusion matrix generation
+- [x] Overall Accuracy with SE
+- [x] User's/Producer's Accuracy per class
+- [x] Protocol definition and export
 
-4) UI/UX tightening
-- Clean unit labels (km^2) and warn when AOI is missing or plot placement fails.
-- Keep advanced options context-sensitive (only show plot size for area sampling, etc.).
+### Phase 4: Data Export
+- [x] GeoJSON with metadata
+- [x] CSV export
+- [x] Protocol text export
 
-5) Export/reporting
-- Include a `design` metadata block in GeoJSON/CSV exports (method, unit type, AOI area, stratum areas, seed).
-- Provide a short inline note reminding users to align analysis/variance estimation with the selected design.
+---
 
-## Non-goals for this iteration
-- Full variance estimators for cluster designs, change-area estimators, or reference-label uncertainty modeling.
-- GUI for multi-date change sampling or boundary quality scoring.
+## In Progress / Planned 🔄
 
-## Validation plan
-- Run `npx htmlhint index.html` after changes.
-- Manual smoke tests: generate samples for each method (including plots and spatially balanced) and confirm features render, stay inside AOI, and export weights/metadata.
+### Near-term
+1. **Stratified sampling refinement**
+   - Per-stratum allocation UI with custom counts
+   - Area-proportional weighting
+
+2. **Design weights**
+   - Attach `inclusionProb` to all outputs
+   - Support Olofsson-style variance estimation
+
+3. **NNI calculation**
+   - Actual nearest-neighbor index computation
+   - Spatial pattern feedback
+
+### Medium-term
+4. **Area estimation module**
+   - Bias-adjusted area estimates per class
+   - Confidence intervals for area
+
+5. **Improved strata handling**
+   - Visual strata legend on map
+   - Auto-detect spatial join between AOI and strata
+
+---
+
+## Non-goals
+
+- Full variance estimators for complex designs
+- Multi-date change detection sampling
+- Server-side processing or authentication
+
+---
+
+## Validation Checklist
+
+Before release:
+- [x] `npx htmlhint index.html` passes
+- [ ] Manual test: All sampling methods generate points
+- [ ] Manual test: File uploads work (AOI, Strata, Results)
+- [ ] Manual test: Analysis tab calculates accuracy
+- [ ] Manual test: All exports download correctly
