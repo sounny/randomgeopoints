@@ -809,6 +809,8 @@
     /* =========================================
        THEME TOGGLE
        ========================================= */
+    let updateMapTiles = () => { }; // Placeholder, will be set after map init
+
     const initTheme = () => {
       const saved = localStorage.getItem('theme');
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -835,7 +837,7 @@
       document.documentElement.setAttribute('data-theme', next);
       localStorage.setItem('theme', next);
       updateThemeUI(next);
-      // Switch map tiles
+      // Switch map tiles (function defined after map init)
       updateMapTiles(next);
     });
 
@@ -1051,7 +1053,8 @@
     const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
     tileLayers[currentTheme].addTo(map);
 
-    const updateMapTiles = (theme) => {
+    // Assign the real updateMapTiles function now that map is initialized
+    updateMapTiles = (theme) => {
       map.eachLayer(layer => {
         if (layer instanceof L.TileLayer) map.removeLayer(layer);
       });
