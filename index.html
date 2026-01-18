@@ -1125,12 +1125,18 @@
       const el = document.getElementById(id);
       const inp = document.getElementById(inputId);
       el.onclick = () => inp.click();
-      inp.onchange = async (e) => cb(e.target.files[0], el);
+      inp.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        cb(file, el);
+      };
       el.ondragover = (e) => { e.preventDefault(); el.classList.add('active'); };
       el.ondragleave = () => el.classList.remove('active');
       el.ondrop = async (e) => {
         e.preventDefault(); el.classList.remove('active');
-        cb(e.dataTransfer.files[0], el);
+        const file = e.dataTransfer.files[0];
+        if (!file) return;
+        cb(file, el);
       };
     };
 
@@ -1443,6 +1449,10 @@
       } else {
         // Simple CSV parser
         const lines = txt.split('\n').map(l => l.trim()).filter(l => l);
+        if (lines.length < 2) {
+          alert('Result file needs a header row and at least one data row.');
+          return;
+        }
         const headers = lines[0].split(',');
         data = lines.slice(1).map(l => {
           const vals = l.split(',');
@@ -1452,11 +1462,20 @@
         });
       }
 
+      if (!data.length) {
+        alert('Result file did not contain any records.');
+        return;
+      }
+
       state.analysisData = data;
       el.innerHTML = `<div>Loaded ${data.length} records</div>`;
 
       // Populate Column Selects
-      const cols = Object.keys(data[0]);
+      const cols = Object.keys(data[0] || {});
+      if (!cols.length) {
+        alert('Result file needs column headers.');
+        return;
+      }
       const populate = (id) => {
         const s = document.getElementById(id); s.innerHTML = '';
         cols.forEach(c => {
