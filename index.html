@@ -1128,7 +1128,11 @@
       inp.onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        cb(file, el);
+        try {
+          await cb(file, el);
+        } catch (err) {
+          alert(`Could not process ${file.name}: ${err.message}`);
+        }
       };
       el.ondragover = (e) => { e.preventDefault(); el.classList.add('active'); };
       el.ondragleave = () => el.classList.remove('active');
@@ -1136,7 +1140,11 @@
         e.preventDefault(); el.classList.remove('active');
         const file = e.dataTransfer.files[0];
         if (!file) return;
-        cb(file, el);
+        try {
+          await cb(file, el);
+        } catch (err) {
+          alert(`Could not process ${file.name}: ${err.message}`);
+        }
       };
     };
 
@@ -1223,6 +1231,11 @@
         seed: document.getElementById('seed').value,
         method: document.getElementById('method').value
       };
+
+      if (!Number.isFinite(config.n) || config.n < 1) {
+        alert('Sample size must be a positive number.');
+        return;
+      }
 
       document.getElementById('loadingOverlay').style.display = 'flex';
 
@@ -1314,6 +1327,9 @@
               const pt = turf.point([x, y]);
               if (pointInAoi(pt)) centers.push([x, y]);
             }
+            if (centers.length === 0) {
+              throw new Error('Could not place any cluster centers inside the AOI. Try fewer clusters or a different AOI.');
+            }
             const ptsPerCluster = Math.ceil(config.n / centers.length);
             centers.forEach((c, cIdx) => {
               for (let i = 0; i < ptsPerCluster && points.length < config.n; i++) {
@@ -1378,6 +1394,10 @@
           }
 
           // Update State
+          if (!points.length) {
+            throw new Error('No samples were generated for the selected method and AOI. Try a larger AOI or different settings.');
+          }
+
           state.sample = turf.featureCollection(points);
 
           // Add Metadata with design weights (Olofsson 2014)
@@ -1409,7 +1429,7 @@
           // Update Stats
           const areaSqKm = totalArea / 1e6;
           document.getElementById('resCount').innerText = points.length;
-          document.getElementById('resDensity').innerText = (points.length / areaSqKm).toFixed(2) + '/km²';
+          document.getElementById('resDensity').innerText = areaSqKm > 0 ? `${(points.length / areaSqKm).toFixed(2)}/km²` : 'N/A';
 
           // Spatial Health Check - Real NNI Calculation (Clark & Evans 1954)
           if (points.length >= 10 && points[0].geometry.type === 'Point') {
@@ -1445,6 +1465,9 @@
       // Parse CSV or GeoJSON
       if (file.name.endsWith('json')) {
         const gj = JSON.parse(txt);
+        if (!Array.isArray(gj.features)) {
+          throw new Error('GeoJSON results must be a FeatureCollection with a features array.');
+        }
         data = gj.features.map(f => f.properties);
       } else {
         // Simple CSV parser
@@ -1493,6 +1516,15 @@
       const refCol = document.getElementById('colRef').value;
       const data = state.analysisData;
 
+      if (!Array.isArray(data) || data.length === 0) {
+        alert('Load a results file before running analysis.');
+        return;
+      }
+      if (!mapCol || !refCol) {
+        alert('Select both map and reference columns.');
+        return;
+      }
+
       // 1. Build Confusion Matrix
       const classes = [...new Set([...data.map(d => d[mapCol]), ...data.map(d => d[refCol])])].sort();
       const matrix = {};
@@ -1509,6 +1541,11 @@
         total++;
         if (m === r) correct++;
       });
+
+      if (total === 0) {
+        alert('No valid records were found for the selected columns.');
+        return;
+      }
 
       // 2. Render Matrix
       const table = document.getElementById('matrixTable');

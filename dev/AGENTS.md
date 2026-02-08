@@ -26,3 +26,5 @@ This file acts as a shared memory and change log for the **Random Geo Points** p
 - 2025-12-14: Created `FULL_DEVELOPMENT_PLAN.md` detailing the v2 roadmap, architecture, and feature prioritization. Defined scope for Stratified Sampling logic, Olofsson Analysis Engine, and Protocol Builder.
 - 2025-12-15: Fixed AOI point-in-polygon checks to support FeatureCollections and keep cluster samples inside the AOI.
 - 2026-01-12: Guarded file input handling and analysis parsing to avoid empty uploads causing errors.
+
+- 2026-02-08: Fixed input validation and error handling for file uploads, sample generation, and analysis to prevent crashes (empty samples, invalid GeoJSON, and pre-analysis checks).
